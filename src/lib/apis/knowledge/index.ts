@@ -1,6 +1,12 @@
 import { WEBUI_API_BASE_URL } from '$lib/constants';
 
-export const createNewKnowledge = async (token: string, name: string, description: string, embed: boolean) => {
+export const createNewKnowledge = async (
+    token: string,
+    name: string,
+    description: string,
+    accessControl: null | object,
+    embed: boolean
+) => {
 	let error = null;
 
 	const res = await fetch(`${WEBUI_API_BASE_URL}/knowledge/create`, {
@@ -13,7 +19,8 @@ export const createNewKnowledge = async (token: string, name: string, descriptio
 		body: JSON.stringify({
 			name: name,
 			description: description,
-			embed: embed
+			embed: embed,
+            access_control: accessControl
 		})
 	})
 		.then(async (res) => {
@@ -33,10 +40,41 @@ export const createNewKnowledge = async (token: string, name: string, descriptio
 	return res;
 };
 
-export const getKnowledgeItems = async (token: string = '') => {
+export const getKnowledgeBases = async (token: string = '') => {
 	let error = null;
 
 	const res = await fetch(`${WEBUI_API_BASE_URL}/knowledge/`, {
+		method: 'GET',
+		headers: {
+			Accept: 'application/json',
+			'Content-Type': 'application/json',
+			authorization: `Bearer ${token}`
+		}
+	})
+		.then(async (res) => {
+			if (!res.ok) throw await res.json();
+			return res.json();
+		})
+		.then((json) => {
+			return json;
+		})
+		.catch((err) => {
+			error = err.detail;
+			console.log(err);
+			return null;
+		});
+
+	if (error) {
+		throw error;
+	}
+
+	return res;
+};
+
+export const getKnowledgeBaseList = async (token: string = '') => {
+	let error = null;
+
+	const res = await fetch(`${WEBUI_API_BASE_URL}/knowledge/list`, {
 		method: 'GET',
 		headers: {
 			Accept: 'application/json',
@@ -100,6 +138,8 @@ type KnowledgeUpdateForm = {
 	name?: string;
 	description?: string;
 	data?: object;
+    embed?: boolean,
+	access_control?: null | object;
 };
 
 export const updateKnowledgeById = async (token: string, id: string, form: KnowledgeUpdateForm) => {
@@ -115,7 +155,9 @@ export const updateKnowledgeById = async (token: string, id: string, form: Knowl
 		body: JSON.stringify({
 			name: form?.name ? form.name : undefined,
 			description: form?.description ? form.description : undefined,
-			data: form?.data ? form.data : undefined
+			data: form?.data ? form.data : undefined,
+            embed: form?.embed,
+			access_control: form.access_control
 		})
 	})
 		.then(async (res) => {

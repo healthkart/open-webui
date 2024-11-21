@@ -54,6 +54,7 @@
 			file_ids: string[];
 		};
 		files: any[];
+		embed: boolean
 	};
 
 	let id = null;
@@ -146,7 +147,7 @@
 		}
 
 		try {
-			const uploadedFile = await uploadFile(localStorage.token, file).catch((e) => {
+			const uploadedFile = await uploadFile(localStorage.token, file, knowledge.embed).catch((e) => {
 				toast.error(e);
 				return null;
 			});

@@ -182,21 +182,22 @@ def add_file_to_knowledge_by_id(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=ERROR_MESSAGES.NOT_FOUND,
         )
-    if not file.data:
+    if knowledge.embed and not file.data:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=ERROR_MESSAGES.FILE_NOT_PROCESSED,
         )
 
     # Add content to the vector database
-    try:
-        process_file(ProcessFileForm(file_id=form_data.file_id, collection_name=id))
-    except Exception as e:
-        log.debug(e)
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e),
-        )
+    if knowledge.embed:
+        try:
+            process_file(ProcessFileForm(file_id=form_data.file_id, collection_name=id))
+        except Exception as e:
+            log.debug(e)
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=str(e),
+            )
 
     if knowledge:
         data = knowledge.data or {}

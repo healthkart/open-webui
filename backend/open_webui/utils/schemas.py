@@ -13,6 +13,7 @@ def json_schema_to_model(tool_dict: dict[str, Any]) -> Type[BaseModel]:
 
     Returns:
         A Pydantic BaseModel class.
+        :param tool_dict:
     """
 
     # Extract the model name from the schema title.

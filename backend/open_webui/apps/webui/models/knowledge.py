@@ -11,8 +11,7 @@ from open_webui.apps.webui.models.files import FileMetadataResponse
 
 
 from pydantic import BaseModel, ConfigDict
-from sqlalchemy import BigInteger, Column, String, Text, JSON
-
+from sqlalchemy import BigInteger, Column, String, Text, JSON, Boolean
 
 log = logging.getLogger(__name__)
 log.setLevel(SRC_LOG_LEVELS["MODELS"])
@@ -36,6 +35,7 @@ class Knowledge(Base):
 
     created_at = Column(BigInteger)
     updated_at = Column(BigInteger)
+    embed = Column(Boolean, default=True)
 
 
 class KnowledgeModel(BaseModel):
@@ -52,6 +52,7 @@ class KnowledgeModel(BaseModel):
 
     created_at: int  # timestamp in epoch
     updated_at: int  # timestamp in epoch
+    embed: bool
 
 
 ####################
@@ -69,12 +70,14 @@ class KnowledgeResponse(BaseModel):
     updated_at: int  # timestamp in epoch
 
     files: Optional[list[FileMetadataResponse | dict]] = None
+    embed: bool
 
 
 class KnowledgeForm(BaseModel):
     name: str
     description: str
     data: Optional[dict] = None
+    embed: bool = True
 
 
 class KnowledgeUpdateForm(BaseModel):

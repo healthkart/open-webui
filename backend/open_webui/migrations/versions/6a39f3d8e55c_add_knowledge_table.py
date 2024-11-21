@@ -31,6 +31,7 @@ def upgrade():
         sa.Column("meta", sa.JSON(), nullable=True),
         sa.Column("created_at", sa.BigInteger(), nullable=False),
         sa.Column("updated_at", sa.BigInteger(), nullable=True),
+        sa.Column("embed", sa.Boolean(), nullable=False)
     )
 
     print("Migrating data from document table to knowledge table")

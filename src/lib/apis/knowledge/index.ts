@@ -1,6 +1,6 @@
 import { WEBUI_API_BASE_URL } from '$lib/constants';
 
-export const createNewKnowledge = async (token: string, name: string, description: string) => {
+export const createNewKnowledge = async (token: string, name: string, description: string, embed: boolean) => {
 	let error = null;
 
 	const res = await fetch(`${WEBUI_API_BASE_URL}/knowledge/create`, {
@@ -12,7 +12,8 @@ export const createNewKnowledge = async (token: string, name: string, descriptio
 		},
 		body: JSON.stringify({
 			name: name,
-			description: description
+			description: description,
+			embed: embed
 		})
 	})
 		.then(async (res) => {

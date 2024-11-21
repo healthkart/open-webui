@@ -21,7 +21,7 @@ from open_webui.env import SRC_LOG_LEVELS
 from open_webui.constants import ERROR_MESSAGES
 
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status, Query
 from fastapi.responses import FileResponse, StreamingResponse
 
 
@@ -39,7 +39,7 @@ router = APIRouter()
 
 
 @router.post("/", response_model=FileModelResponse)
-def upload_file(file: UploadFile = File(...), user=Depends(get_verified_user)):
+def upload_file(file: UploadFile = File(...), user=Depends(get_verified_user), embed: bool = Query(default=True)):
     log.info(f"file.content_type: {file.content_type}")
     try:
         unsanitized_filename = file.filename
@@ -67,18 +67,19 @@ def upload_file(file: UploadFile = File(...), user=Depends(get_verified_user)):
             ),
         )
 
-        try:
-            process_file(ProcessFileForm(file_id=id))
-            file_item = Files.get_file_by_id(id=id)
-        except Exception as e:
-            log.exception(e)
-            log.error(f"Error processing file: {file_item.id}")
-            file_item = FileModelResponse(
-                **{
-                    **file_item.model_dump(),
-                    "error": str(e.detail) if hasattr(e, "detail") else str(e),
-                }
-            )
+        if embed:
+            try:
+                process_file(ProcessFileForm(file_id=id))
+                file_item = Files.get_file_by_id(id=id)
+            except Exception as e:
+                log.exception(e)
+                log.error(f"Error processing file: {file_item.id}")
+                file_item = FileModelResponse(
+                    **{
+                        **file_item.model_dump(),
+                        "error": str(e.detail) if hasattr(e, "detail") else str(e),
+                    }
+                )
 
         if file_item:
             return file_item

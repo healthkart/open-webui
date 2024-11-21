@@ -6,11 +6,13 @@
 	import { createNewKnowledge, getKnowledgeItems } from '$lib/apis/knowledge';
 	import { toast } from 'svelte-sonner';
 	import { knowledge } from '$lib/stores';
+	import Switch from "$lib/components/common/Switch.svelte";
 
 	let loading = false;
 
 	let name = '';
 	let description = '';
+	let embed = false;
 
 	const submitHandler = async () => {
 		loading = true;
@@ -23,7 +25,7 @@
 			return;
 		}
 
-		const res = await createNewKnowledge(localStorage.token, name, description).catch((e) => {
+		const res = await createNewKnowledge(localStorage.token, name, description, embed).catch((e) => {
 			toast.error(e);
 		});
 
@@ -95,6 +97,14 @@
 							bind:value={description}
 							placeholder={`Describe your knowledge base and objectives`}
 							required
+						/>
+					</div>
+				</div>
+				<div>
+					<div class="text-sm mb-2">Embed</div>
+					<div class=" self-center mx-1">
+						<Switch
+								bind:state={embed}
 						/>
 					</div>
 				</div>

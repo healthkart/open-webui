@@ -1,34 +1,33 @@
 services:
-  ollama:
-    volumes:
-      - ollama:/root/.ollama
-    container_name: ollama
-    pull_policy: always
-    tty: true
-    restart: unless-stopped
-    image: ollama/ollama:${OLLAMA_DOCKER_TAG-latest}
-
-  open-webui:
-    build:
-      context: .
-      args:
-        OLLAMA_BASE_URL: '/ollama'
-      dockerfile: Dockerfile
-    image: ghcr.io/open-webui/open-webui:${WEBUI_DOCKER_TAG-main}
-    container_name: open-webui
-    volumes:
-      - open-webui:/app/backend/data
-    depends_on:
-      - ollama
+  ui:
+    image: open-webui:latest
+    container_name: llmui
+    restart: always
     ports:
-      - ${OPEN_WEBUI_PORT-3000}:8080
+      - "3000:8080"
+    volumes:
+      - ./openwebui:/app/backend/data
+      - ./docs:/data/docs
+    logging:
+      options:
+        max-size: "50m"
     environment:
-      - 'OLLAMA_BASE_URL=http://ollama:11434'
-      - 'WEBUI_SECRET_KEY='
-    extra_hosts:
-      - host.docker.internal:host-gateway
-    restart: unless-stopped
+      - OLLAMA_BASE_URL=http://134.65.165.93:1542
+      - ENABLE_ADMIN_CHAT_ACCESS=false
+      - ENABLE_OAUTH_SIGNUP=true
+      - GOOGLE_CLIENT_ID=1046941779389-o6uc9c8m1ub8a3o255tnq15mavu4a92o.apps.googleusercontent.com
+      - GOOGLE_CLIENT_SECRET=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
+      - ENABLE_OLLAMA_API=true
+      - WEBUI_NAME="HK WebUI"
+      - DEFAULT_USER_ROLE=user
+      - ENABLE_MODEL_FILTER=True
+      - ENABLE_COMMUNITY_SHARING=False
+      - DATABASE_URL=postgresql://root:root@172.21.219.177:5332/hkwebui
+      - DATABASE_POOL_SIZE=50
+      - DATABASE_POOL_MAX_OVERFLOW=5
+      - OAUTH_MERGE_ACCOUNTS_BY_EMAIL=true
+      - VECTOR_DB=qdrant
+      - QDRANT_URI=http://172.21.219.177:6333
 
 volumes:
-  ollama: {}
   open-webui: {}

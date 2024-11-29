@@ -1,7 +1,11 @@
 import requests
 import logging
 import ftfy
-
+import os
+import hashlib
+import pandas as pd
+from dataclasses import dataclass
+from unstructured.partition.pdf import partition_pdf
 from langchain_community.document_loaders import (
     BSHTMLLoader,
     CSVLoader,
@@ -17,8 +21,13 @@ from langchain_community.document_loaders import (
     UnstructuredXMLLoader,
     YoutubeLoader,
 )
+from langchain_ollama import ChatOllama
+from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.documents import Document
 from open_webui.env import SRC_LOG_LEVELS
+
+# OCR Agent
+os.environ["OCR_AGENT"] = "unstructured.partition.utils.ocr_models.paddle_ocr.OCRAgentPaddle"
 
 log = logging.getLogger(__name__)
 log.setLevel(SRC_LOG_LEVELS["RAG"])
@@ -77,6 +86,95 @@ known_source_ext = [
 ]
 
 
+# PDF Loader
+@dataclass
+class Element:
+    type: str
+    text: str
+
+
+def table_chunking(file_path):
+    raw_pdf_elements = partition_pdf(
+        file_path,
+        extract_images_in_pdf=False,
+        infer_table_structure=True,
+        chunking_strategy='by_title',
+        max_characters=4000,
+        new_after_n_chars=3800,
+        combine_text_under_n_chars=2000,
+        strategy='hi_res',
+        languages=["en"]
+    )
+
+    categorized_elements = []
+    for i, element in enumerate(raw_pdf_elements):
+        if 'CompositeElement' in element.category:
+            categorized_elements.append(Element(type="text", text=element.text))
+        elif 'Table' == element.category:
+            if raw_pdf_elements[i - 1].metadata.orig_elements[-1].category == 'Title':
+                txt = f'{raw_pdf_elements[i - 1].metadata.orig_elements[-1].text}\n{element.metadata.text_as_html}'
+            else:
+                txt = element.metadata.text_as_html
+            categorized_elements.append(Element(type="table", text=txt))
+
+    return categorized_elements
+
+
+class CustomPDFLoader:
+    def __init__(self, file_path):
+        self.file_path = file_path
+
+    def load(self) -> list[Document]:
+        elements = table_chunking(self.file_path)
+        if not elements:
+            return []
+
+        docs = []
+        filename = os.path.basename(self.file_path)
+        filename = filename[:filename.rindex('.')].lower()
+
+        # Text elements
+        text_elements = [e for e in elements if e.type == 'text']
+        for elem in text_elements:
+            docs.append(Document(
+                page_content=elem.text,
+                metadata={
+                    "filename": filename,
+                    "hash": hashlib.md5(elem.text.encode()).hexdigest(),
+                    "type": "text"
+                }
+            ))
+
+        # Table elements
+        table_elements = filter(lambda x: x.type == "table", elements)
+        summary_prompt = ChatPromptTemplate.from_template("""You are an expert at assisting employees tasked with writing a report based on tables and text.
+        Give a verbose, informative, and descriptive report of the table or text mentioning all facts and figures. Table chunk: {element}
+        """)
+        llm = ChatOllama(
+            base_url=os.getenv("OLLAMA_BASE_URL"),  # "http://134.65.165.93:1542",
+            temperature=0,
+            cache=False,  # TODO: Maybe true ?
+            model='llama3.1:70b-instruct-q8_0',
+            seed=42
+        )
+        table_texts = [e.text for e in table_elements]
+        chain = {"element": lambda x: x} | summary_prompt | llm
+
+        # Process table summaries in batches
+        for summary, text in zip(chain.batch(table_texts, {"max_concurrency": 5}), table_texts):
+            docs.append(Document(
+                page_content=summary.content,
+                metadata={
+                    "filename": filename,
+                    "hash": hashlib.md5(summary.content.encode()).hexdigest(),
+                    "original_content": summary.content,
+                    "type": "table"
+                }
+            ))
+
+        return docs
+
+
 class TikaLoader:
     def __init__(self, url, file_path, mime_type=None):
         self.url = url
@@ -119,7 +217,7 @@ class Loader:
         self.kwargs = kwargs
 
     def load(
-        self, filename: str, file_content_type: str, file_path: str
+            self, filename: str, file_content_type: str, file_path: str
     ) -> list[Document]:
         loader = self._get_loader(filename, file_content_type, file_path)
         docs = loader.load()
@@ -136,7 +234,7 @@ class Loader:
 
         if self.engine == "tika" and self.kwargs.get("TIKA_SERVER_URL"):
             if file_ext in known_source_ext or (
-                file_content_type and file_content_type.find("text/") >= 0
+                    file_content_type and file_content_type.find("text/") >= 0
             ):
                 loader = TextLoader(file_path, autodetect_encoding=True)
             else:
@@ -147,9 +245,7 @@ class Loader:
                 )
         else:
             if file_ext == "pdf":
-                loader = PyPDFLoader(
-                    file_path, extract_images=self.kwargs.get("PDF_EXTRACT_IMAGES")
-                )
+                loader = CustomPDFLoader(file_path)
             elif file_ext == "csv":
                 loader = CSVLoader(file_path)
             elif file_ext == "rst":
@@ -163,9 +259,9 @@ class Loader:
             elif file_content_type == "application/epub+zip":
                 loader = UnstructuredEPubLoader(file_path)
             elif (
-                file_content_type
-                == "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                or file_ext == "docx"
+                    file_content_type
+                    == "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                    or file_ext == "docx"
             ):
                 loader = Docx2txtLoader(file_path)
             elif file_content_type in [
@@ -181,7 +277,7 @@ class Loader:
             elif file_ext == "msg":
                 loader = OutlookMessageLoader(file_path)
             elif file_ext in known_source_ext or (
-                file_content_type and file_content_type.find("text/") >= 0
+                    file_content_type and file_content_type.find("text/") >= 0
             ):
                 loader = TextLoader(file_path, autodetect_encoding=True)
             else:

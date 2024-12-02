@@ -147,11 +147,11 @@ class CustomPDFLoader:
 
         # Table elements
         table_elements = filter(lambda x: x.type == "table", elements)
-        summary_prompt = ChatPromptTemplate.from_template("""You are an expert at assisting employees tasked with writing a report based on tables and text.
-        Give a verbose, informative, and descriptive report of the table or text mentioning all facts and figures. Table chunk: {element}
+        summary_prompt = ChatPromptTemplate.from_template("""
+        You are an expert in generating detailed, informative descriptions of tables. Please provide a comprehensive explanation of the entire table presented below. Ensure to cover all figures, facts, and details clearly and in full. The explanation should be concise but thorough, describing the relationships between different data points, key trends, and any important takeaways from the table. Table chunk: {element}
         """)
         llm = ChatOllama(
-            base_url=os.getenv("OLLAMA_BASE_URL"),  # "http://134.65.165.93:1542",
+            base_url=os.getenv("OLLAMA_BASE_URL"),
             temperature=0,
             cache=False,  # TODO: Maybe true ?
             model='llama3.1:70b-instruct-q8_0',

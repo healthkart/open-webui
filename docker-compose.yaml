@@ -23,11 +23,21 @@ services:
       - ENABLE_MODEL_FILTER=True
       - ENABLE_COMMUNITY_SHARING=False
       - DATABASE_URL=postgresql://root:root@172.21.219.177:5332/hkwebui
+      # - DATABASE_URL=postgresql://postgres:postgres@localhost:5432/postgres
       - DATABASE_POOL_SIZE=50
       - DATABASE_POOL_MAX_OVERFLOW=5
       - OAUTH_MERGE_ACCOUNTS_BY_EMAIL=true
       - VECTOR_DB=qdrant
       - QDRANT_URI=http://172.21.219.177:6333
+#      - QDRANT_URI=http://localhost:6333
+      - RAG_TOP_K=10
+      - ENABLE_RAG_HYBRID_SEARCH=true
+      - RAG_EMBEDDING_ENGINE=ollama
+      - RAG_EMBEDDING_MODEL=mxbai-embed-large
+      - RAG_EMBEDDING_OPENAI_BATCH_SIZE=5
+      - CHUNK_SIZE=2000
+      - CHUNK_OVERLAP=100
+      - TOKENIZERS_PARALLELISM=true
 
 volumes:
   open-webui: {}

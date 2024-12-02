@@ -40,6 +40,7 @@ tiktoken
 langchain==0.3.7
 langchain-community==0.3.7
 langchain-chroma==0.1.4
+langchain-ollama==0.2.0
 
 fake-useragent==1.5.1
 chromadb==0.5.15
@@ -59,7 +60,10 @@ pymdown-extensions==10.11.2
 docx2txt==0.8
 python-pptx==1.0.0
 unstructured==0.15.9
+unstructured-inference==0.7.36
 unstructured.paddleocr==2.8.1.0
+pdfminer.six==20231228
+pi_heif
 nltk==3.9.1
 Markdown==3.7
 pypandoc==1.13

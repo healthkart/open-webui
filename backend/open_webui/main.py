@@ -379,6 +379,7 @@ async def chat_completion_tools_handler(
     if not tool_ids:
         return body, {}
 
+    skip_rag = False
     skip_files = False
     contexts = []
     citations = []
@@ -458,10 +459,11 @@ async def chat_completion_tools_handler(
                     for k, v in tool_function_params.items()
                     if k in required_params
                 }
-                tool_output = await tool_function(**tool_function_params)
+                tool_output, skip_rag = await tool_function(**tool_function_params)
 
             except Exception as e:
                 tool_output = str(e)
+
 
             if tools[tool_function_name]["citation"]:
                 citations.append(
@@ -470,7 +472,7 @@ async def chat_completion_tools_handler(
                             "name": f"TOOL:{tools[tool_function_name]['toolkit_id']}/{tool_function_name}"
                         },
                         "document": [tool_output],
-                        "metadata": [{"source": tool_function_name}],
+                        "metadata": [{"source": tool_function_name, "skip_rag": True}],
                     }
                 )
             if tools[tool_function_name]["file_handler"]:
@@ -487,7 +489,7 @@ async def chat_completion_tools_handler(
 
     log.debug(f"tool_contexts: {contexts}")
 
-    if skip_files and "files" in body.get("metadata", {}):
+    if (skip_files or skip_rag) and "files" in body.get("metadata", {}):
         del body["metadata"]["files"]
 
     return body, {"contexts": contexts, "citations": citations}

@@ -116,6 +116,9 @@ RUN if [ "$USE_OLLAMA" = "true" ]; then \
     apt-get install -y --no-install-recommends ffmpeg libsm6 libxext6 && \
     # install helper tools
     apt-get install -y --no-install-recommends curl jq && \
+    # install poppler
+    apt-get install libpoppler-dev && \
+    apt-get install poppler-utils && \
     # install ollama
     curl -fsSL https://ollama.com/install.sh | sh && \
     # cleanup

@@ -3,7 +3,6 @@ import logging
 import ftfy
 import os
 import hashlib
-import pandas as pd
 from dataclasses import dataclass
 from unstructured.partition.pdf import partition_pdf
 from langchain_community.document_loaders import (
@@ -112,9 +111,10 @@ def table_chunking(file_path):
             categorized_elements.append(Element(type="text", text=element.text))
         elif 'Table' == element.category:
             if raw_pdf_elements[i - 1].metadata.orig_elements[-1].category == 'Title':
-                txt = f'{raw_pdf_elements[i - 1].metadata.orig_elements[-1].text}\n{element.metadata.text_as_html}'
+                txt = f'{raw_pdf_elements[i - 1].metadata.orig_elements[-1].text}\n{element.text}'
             else:
-                txt = element.metadata.text_as_html
+                # txt = element.metadata.text_as_html
+                txt = element.text
             categorized_elements.append(Element(type="table", text=txt))
 
     return categorized_elements
@@ -147,28 +147,38 @@ class CustomPDFLoader:
 
         # Table elements
         table_elements = filter(lambda x: x.type == "table", elements)
-        summary_prompt = ChatPromptTemplate.from_template("""
-        You are an expert in generating detailed, informative descriptions of tables. Please provide a comprehensive explanation of the entire table presented below. Ensure to cover all figures, facts, and details clearly and in full. The explanation should be concise but thorough, describing the relationships between different data points, key trends, and any important takeaways from the table. Table chunk: {element}
-        """)
-        llm = ChatOllama(
-            base_url=os.getenv("OLLAMA_BASE_URL"),
-            temperature=0,
-            cache=False,  # TODO: Maybe true ?
-            model='llama3.1:70b-instruct-q8_0',
-            seed=42
-        )
-        table_texts = [e.text for e in table_elements]
-        chain = {"element": lambda x: x} | summary_prompt | llm
+        # summary_prompt = ChatPromptTemplate.from_template("""
+        # You are an expert in generating detailed, informative descriptions of tables. Please provide a comprehensive explanation of the entire table presented below. Ensure to cover all figures, facts, and details clearly and in full. The explanation should be concise but thorough, describing the relationships between different data points, key trends, and any important takeaways from the table. Table chunk: {element}
+        # """)
+        # llm = ChatOllama(
+        #     base_url=os.getenv("OLLAMA_BASE_URL"),
+        #     temperature=0,
+        #     cache=False,  # TODO: Maybe true ?
+        #     model='llama3.1:70b-instruct-q8_0',
+        #     seed=42
+        # )
+        # table_texts = [e.text for e in table_elements]
+        # chain = {"element": lambda x: x} | summary_prompt | llm
+        #
+        # # Process table summaries in batches
+        # for summary, text in zip(chain.batch(table_texts, {"max_concurrency": 5}), table_texts):
+        #     docs.append(Document(
+        #         page_content=summary.content,
+        #         metadata={
+        #             "filename": filename,
+        #             "hash": hashlib.md5(summary.content.encode()).hexdigest(),
+        #             "original_content": summary.content,
+        #             "type": "table"
+        #         }
+        #     ))
 
-        # Process table summaries in batches
-        for summary, text in zip(chain.batch(table_texts, {"max_concurrency": 5}), table_texts):
+        for elem in table_elements:
             docs.append(Document(
-                page_content=summary.content,
+                page_content=elem.text,
                 metadata={
                     "filename": filename,
-                    "hash": hashlib.md5(summary.content.encode()).hexdigest(),
-                    "original_content": summary.content,
-                    "type": "table"
+                    "hash": hashlib.md5(elem.text.encode()).hexdigest(),
+                    "type": "text"
                 }
             ))
 

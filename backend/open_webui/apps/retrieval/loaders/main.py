@@ -148,8 +148,15 @@ class CustomPDFLoader:
         # Table elements
         table_elements = filter(lambda x: x.type == "table", elements)
         summary_prompt = ChatPromptTemplate.from_template("""
-        You are an expert in generating detailed, informative descriptions of tables. Please provide a comprehensive explanation of the entire table presented below. Ensure to cover all figures, facts, and details clearly and in full. The explanation should be concise but thorough, describing the relationships between different data points, key trends, and any important takeaways from the table. Table chunk: {element}
+        Provide a comprehensive and accurate description of the following table. 
+        - Include all figures and facts without adding any information not present in the table.
+        - Describe the purpose of the table and summarize the content.
+        - Detail the values in each row and column clearly.
+
+        Table Data:
+        {element}
         """)
+
         llm = ChatOllama(
             base_url=os.getenv("OLLAMA_BASE_URL"),
             temperature=0,
@@ -167,7 +174,7 @@ class CustomPDFLoader:
                 metadata={
                     "filename": filename,
                     "hash": hashlib.md5(summary.content.encode()).hexdigest(),
-                    "original_content": summary.content,
+                    "original_content": text,
                     "type": "table"
                 }
             ))

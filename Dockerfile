@@ -107,7 +107,7 @@ RUN echo -n 00000000-0000-0000-0000-000000000000 > $HOME/.cache/chroma/telemetry
 # Make sure the user has access to the app and root directory
 RUN chown -R $UID:$GID /app $HOME
 
-RUN apt-get update &&
+RUN apt-get update && \
     # install poppler
     apt-get -y install libpoppler-dev && \
     apt-get -y install poppler-utils

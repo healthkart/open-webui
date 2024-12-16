@@ -107,8 +107,12 @@ RUN echo -n 00000000-0000-0000-0000-000000000000 > $HOME/.cache/chroma/telemetry
 # Make sure the user has access to the app and root directory
 RUN chown -R $UID:$GID /app $HOME
 
+RUN apt-get update &&
+    # install poppler
+    apt-get -y install libpoppler-dev && \
+    apt-get -y install poppler-utils
+
 RUN if [ "$USE_OLLAMA" = "true" ]; then \
-    apt-get update && \
     # Install pandoc and netcat
     apt-get install -y --no-install-recommends git build-essential pandoc netcat-openbsd curl && \
     apt-get install -y --no-install-recommends gcc python3-dev && \
@@ -116,9 +120,6 @@ RUN if [ "$USE_OLLAMA" = "true" ]; then \
     apt-get install -y --no-install-recommends ffmpeg libsm6 libxext6 && \
     # install helper tools
     apt-get install -y --no-install-recommends curl jq && \
-    # install poppler
-    apt-get install libpoppler-dev && \
-    apt-get install poppler-utils && \
     # install ollama
     curl -fsSL https://ollama.com/install.sh | sh && \
     # cleanup
@@ -134,6 +135,7 @@ RUN if [ "$USE_OLLAMA" = "true" ]; then \
     rm -rf /var/lib/apt/lists/*; \
     fi
 
+RUN apt-get update && apt-get install -y poppler-utils
 # install python dependencies
 COPY --chown=$UID:$GID ./backend/requirements.txt ./requirements.txt
 

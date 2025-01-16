@@ -13,6 +13,7 @@ services:
         max-size: "50m"
     environment:
       - OLLAMA_BASE_URL=http://134.65.165.93:1542
+      - MODEL_NAME=llama3.1:70b
       - ENABLE_ADMIN_CHAT_ACCESS=false
       - ENABLE_OAUTH_SIGNUP=true
       - GOOGLE_CLIENT_ID=1046941779389-o6uc9c8m1ub8a3o255tnq15mavu4a92o.apps.googleusercontent.com

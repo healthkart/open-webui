@@ -910,7 +910,7 @@ async def process_chat_response(
                                     "title", "New Chat"
                                 )
                             except Exception as e:
-                                pass
+                                title = ""
 
                             if not title:
                                 title = messages[0].get("content", "New Chat")

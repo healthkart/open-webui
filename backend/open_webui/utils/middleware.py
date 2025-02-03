@@ -253,13 +253,12 @@ async def chat_completion_tools_handler(
     payload = get_tools_function_calling_payload(
         body["messages"], task_model_id, tools_function_calling_prompt
     )
-
+    skip_rag = False
     try:
         response = await generate_chat_completion(request, form_data=payload, user=user)
         log.debug(f"{response=}")
         content = await get_content_from_response(response)
         log.debug(f"{content=}")
-
         if not content:
             return body, {}
 
@@ -289,7 +288,7 @@ async def chat_completion_tools_handler(
                     for k, v in tool_function_params.items()
                     if k in required_params
                 }
-                tool_output = await tool_function(**tool_function_params)
+                tool_output, skip_rag = await tool_function(**tool_function_params)
 
             except Exception as e:
                 tool_output = str(e)
@@ -304,7 +303,8 @@ async def chat_completion_tools_handler(
                             "document": [tool_output],
                             "metadata": [
                                 {
-                                    "source": f"TOOL:{tools[tool_function_name]['toolkit_id']}/{tool_function_name}"
+                                    "source": f"TOOL:{tools[tool_function_name]['toolkit_id']}/{tool_function_name}",
+                                    "skip_rag": True
                                 }
                             ],
                         }
@@ -316,7 +316,8 @@ async def chat_completion_tools_handler(
                             "document": [tool_output],
                             "metadata": [
                                 {
-                                    "source": f"TOOL:{tools[tool_function_name]['toolkit_id']}/{tool_function_name}"
+                                    "source": f"TOOL:{tools[tool_function_name]['toolkit_id']}/{tool_function_name}",
+                                    "skip_rag": True
                                 }
                             ],
                         }
@@ -334,7 +335,7 @@ async def chat_completion_tools_handler(
 
     log.debug(f"tool_contexts: {sources}")
 
-    if skip_files and "files" in body.get("metadata", {}):
+    if (skip_files or skip_rag)  and "files" in body.get("metadata", {}):
         del body["metadata"]["files"]
 
     return body, {"sources": sources}

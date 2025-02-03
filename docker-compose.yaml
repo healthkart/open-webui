@@ -12,8 +12,8 @@ services:
       options:
         max-size: "50m"
     environment:
-      - OLLAMA_BASE_URL=http://134.65.165.93:1542
-      - MODEL_NAME=llama3.1:70b
+      - OLLAMA_BASE_URL=http://195.29.196.251:40106
+      - MODEL_NAME=llama3.1:70b-instruct-q8_0
       - ENABLE_ADMIN_CHAT_ACCESS=false
       - ENABLE_OAUTH_SIGNUP=true
       - GOOGLE_CLIENT_ID=1046941779389-o6uc9c8m1ub8a3o255tnq15mavu4a92o.apps.googleusercontent.com
@@ -30,12 +30,13 @@ services:
       - OAUTH_MERGE_ACCOUNTS_BY_EMAIL=true
       - VECTOR_DB=qdrant
       - QDRANT_URI=http://172.21.219.177:6333
-#      - QDRANT_URI=http://localhost:6333
+      # - QDRANT_URI=http://localhost:6333
       - RAG_TOP_K=10
       - ENABLE_RAG_HYBRID_SEARCH=true
       - RAG_EMBEDDING_ENGINE=ollama
       - RAG_EMBEDDING_MODEL=mxbai-embed-large
       - RAG_EMBEDDING_OPENAI_BATCH_SIZE=5
+      - RAG_RERANKING_MODEL=BAAI/bge-reranker-v2-m3
       - CHUNK_SIZE=2000
       - CHUNK_OVERLAP=100
       - TOKENIZERS_PARALLELISM=true

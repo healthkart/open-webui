@@ -221,3 +221,9 @@ If you have any questions, suggestions, or need assistance, please open an issue
 ---
 
 Created by [Timothy Jaeryang Baek](https://github.com/tjbck) - Let's make Open WebUI even more amazing together! 💪
+
+
+### TO create migrations add a migration file in migrations folder inside backend folder
+- TO generate migrations run this statement `alembic -c backend/open_webui/alembic.ini revision -m "added embed column to knowledge" --autogenerate
+`
+- To apply migration run `DATABASE_URL=<dburl> alembic -c alembic.ini upgrade head`

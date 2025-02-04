@@ -62,7 +62,7 @@ fpdf2==2.8.2
 pymdown-extensions==10.14.2
 docx2txt==0.8
 python-pptx==1.0.0
-unstructured==0.15.9
+unstructured==0.16.11
 unstructured-inference==0.7.36
 paddlepaddle==2.6.2
 unstructured.paddleocr==2.8.1.0

@@ -1567,15 +1567,6 @@ async def process_chat_response(
                     if response_tool_calls:
                         tool_calls.append(response_tool_calls)
 
-                    await event_emitter(
-                        {
-                            "type": "chat:completion",
-                            "data": {
-                                "content": serialize_content_blocks(content_blocks),
-                            },
-                        }
-                    )
-
                     if response.background:
                         await response.background()
 

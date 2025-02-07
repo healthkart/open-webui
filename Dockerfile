@@ -110,7 +110,7 @@ RUN chown -R $UID:$GID /app $HOME
 RUN apt-get update && \
     # install poppler
     apt-get install -y --no-install-recommends  libpoppler-dev && \
-    apt-get install -y --no-install-recommends poppler-utils \
+    apt-get install -y --no-install-recommends poppler-utils && \
     # cleanup
     rm -rf /var/lib/apt/lists/*
 

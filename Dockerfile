@@ -115,6 +115,7 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 RUN if [ "$USE_OLLAMA" = "true" ]; then \
+    apt-get update && \
     # Install pandoc and netcat
     apt-get install -y --no-install-recommends git build-essential pandoc netcat-openbsd curl && \
     apt-get install -y --no-install-recommends gcc python3-dev && \
@@ -127,6 +128,7 @@ RUN if [ "$USE_OLLAMA" = "true" ]; then \
     # cleanup
     rm -rf /var/lib/apt/lists/*; \
     else \
+    apt-get update && \
     # Install pandoc, netcat and gcc
     apt-get install -y --no-install-recommends git build-essential pandoc gcc netcat-openbsd curl jq && \
     apt-get install -y --no-install-recommends gcc python3-dev && \

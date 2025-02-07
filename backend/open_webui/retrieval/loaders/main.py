@@ -164,7 +164,7 @@ class CustomPDFLoader:
             base_url=os.getenv("OLLAMA_BASE_URL"),
             temperature=0,
             cache=False,  # TODO: Maybe true ?
-            model='llama3.1:70b-instruct-q8_0',
+            model=os.getenv("MODEL_NAME"),
             seed=42
         )
         table_texts = [e.text for e in table_elements]

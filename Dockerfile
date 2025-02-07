@@ -109,8 +109,10 @@ RUN chown -R $UID:$GID /app $HOME
 
 RUN apt-get update && \
     # install poppler
-    apt-get -y install libpoppler-dev && \
-    apt-get -y install poppler-utils
+    apt-get install -y --no-install-recommends  libpoppler-dev && \
+    apt-get install -y --no-install-recommends poppler-utils \
+    # cleanup
+    rm -rf /var/lib/apt/lists/*
 
 RUN if [ "$USE_OLLAMA" = "true" ]; then \
     # Install pandoc and netcat
@@ -125,7 +127,6 @@ RUN if [ "$USE_OLLAMA" = "true" ]; then \
     # cleanup
     rm -rf /var/lib/apt/lists/*; \
     else \
-    apt-get update && \
     # Install pandoc, netcat and gcc
     apt-get install -y --no-install-recommends git build-essential pandoc gcc netcat-openbsd curl jq && \
     apt-get install -y --no-install-recommends gcc python3-dev && \
@@ -135,7 +136,6 @@ RUN if [ "$USE_OLLAMA" = "true" ]; then \
     rm -rf /var/lib/apt/lists/*; \
     fi
 
-RUN apt-get update && apt-get install -y poppler-utils
 # install python dependencies
 COPY --chown=$UID:$GID ./backend/requirements.txt ./requirements.txt
 

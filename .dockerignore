@@ -6,7 +6,7 @@ node_modules
 /.svelte-kit
 /package
 .env
-.env.*
+.env
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 __pycache__
@@ -18,3 +18,4 @@ uploads
 **/*.db
 _test
 backend/data/*
+openwebui/

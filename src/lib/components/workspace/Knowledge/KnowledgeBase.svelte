@@ -150,7 +150,7 @@
 
 		try {
 			const uploadedFile = await uploadFile(localStorage.token, file, knowledge.embed).catch((e) => {
-				toast.error(e);
+				toast.error(`${e}`);
 				return null;
 			});
 
@@ -170,7 +170,7 @@
 				toast.error($i18n.t('Failed to upload file.'));
 			}
 		} catch (e) {
-			toast.error(e);
+			toast.error(`${e}`);
 		}
 	};
 
@@ -340,7 +340,7 @@
 	const syncDirectoryHandler = async () => {
 		if ((knowledge?.files ?? []).length > 0) {
 			const res = await resetKnowledgeById(localStorage.token, id).catch((e) => {
-				toast.error(e);
+				toast.error(`${e}`);
 			});
 
 			if (res) {
@@ -358,7 +358,7 @@
 	const addFileHandler = async (fileId) => {
 		const updatedKnowledge = await addFileToKnowledgeById(localStorage.token, id, fileId).catch(
 			(e) => {
-				toast.error(e);
+				toast.error(`${e}`);
 				return null;
 			}
 		);
@@ -387,7 +387,7 @@
 			}
 		} catch (e) {
 			console.error('Error in deleteFileHandler:', e);
-			toast.error(e);
+			toast.error(`${e}`);
 		}
 	};
 
@@ -396,7 +396,7 @@
 		const content = selectedFile.data.content;
 
 		const res = updateFileDataContentById(localStorage.token, fileId, content).catch((e) => {
-			toast.error(e);
+			toast.error(`${e}`);
 		});
 
 		const updatedKnowledge = await updateFileFromKnowledgeById(
@@ -404,7 +404,7 @@
 			id,
 			fileId
 		).catch((e) => {
-			toast.error(e);
+			toast.error(`${e}`);
 		});
 
 		if (res && updatedKnowledge) {
@@ -431,7 +431,7 @@
 				description: knowledge.description,
 				access_control: knowledge.access_control
 			}).catch((e) => {
-				toast.error(e);
+				toast.error(`${e}`);
 			});
 
 			if (res) {
@@ -523,7 +523,7 @@
 		id = $page.params.id;
 
 		const res = await getKnowledgeById(localStorage.token, id).catch((e) => {
-			toast.error(e);
+			toast.error(`${e}`);
 			return null;
 		});
 

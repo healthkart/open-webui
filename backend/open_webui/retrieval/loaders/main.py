@@ -28,7 +28,7 @@ from open_webui.env import SRC_LOG_LEVELS, GLOBAL_LOG_LEVEL
 from langchain_core.documents import Document
 from docling.datamodel.base_models import InputFormat
 from docling.document_converter import DocumentConverter, PdfFormatOption
-from docling.datamodel.pipeline_options import PdfPipelineOptions
+from docling.datamodel.pipeline_options import PdfPipelineOptions, TableFormerMode
 from docling.chunking import HybridChunker
 
 # OCR Agent
@@ -98,12 +98,13 @@ class DoclingLoader:
         self.file_path = file_path
         self.pipeline_options = PdfPipelineOptions(do_table_structure=True)
         self.pipeline_options.table_structure_options.do_cell_matching = False
+        self.pipeline_options.table_structure_options.mode = TableFormerMode.ACCURATE
         self.doc_converter = DocumentConverter(
             format_options={
                 InputFormat.PDF: PdfFormatOption(pipeline_options=self.pipeline_options)
             }
         )
-        self.chunker = HybridChunker(tokenizer="BAAI/bge-small-en-v1.5")
+        self.chunker = HybridChunker(tokenizer="BAAI/bge-m3")
 
     def load(self) -> list[Document]:
         # Convert PDF to Docling document

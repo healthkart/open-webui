@@ -3,6 +3,9 @@ import logging
 import ftfy
 import os
 import hashlib
+import pandas as pd
+from dataclasses import dataclass
+from unstructured.partition.pdf import partition_pdf
 import sys
 
 from langchain_community.document_loaders import (
@@ -24,12 +27,6 @@ from langchain_ollama import ChatOllama
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.documents import Document
 from open_webui.env import SRC_LOG_LEVELS, GLOBAL_LOG_LEVEL
-
-from langchain_core.documents import Document
-from docling.datamodel.base_models import InputFormat
-from docling.document_converter import DocumentConverter, PdfFormatOption
-from docling.datamodel.pipeline_options import PdfPipelineOptions, TableFormerMode
-from docling.chunking import HybridChunker
 
 # OCR Agent
 os.environ["OCR_AGENT"] = "unstructured.partition.utils.ocr_models.paddle_ocr.OCRAgentPaddle"
@@ -92,46 +89,96 @@ known_source_ext = [
 ]
 
 
+# PDF Loader
+@dataclass
+class Element:
+    type: str
+    text: str
 
-class DoclingLoader:
+
+def table_chunking(file_path):
+    raw_pdf_elements = partition_pdf(
+        file_path,
+        extract_images_in_pdf=False,
+        infer_table_structure=True,
+        chunking_strategy='by_title',
+        max_characters=4000,
+        new_after_n_chars=3800,
+        combine_text_under_n_chars=2000,
+        strategy='hi_res',
+        languages=["en"]
+    )
+
+    categorized_elements = []
+    for i, element in enumerate(raw_pdf_elements):
+        if 'CompositeElement' in element.category:
+            categorized_elements.append(Element(type="text", text=element.text))
+        elif 'Table' == element.category:
+            if raw_pdf_elements[i - 1].metadata.orig_elements[-1].category == 'Title':
+                txt = f'{raw_pdf_elements[i - 1].metadata.orig_elements[-1].text}\n{element.metadata.text_as_html}'
+            else:
+                txt = element.metadata.text_as_html
+            categorized_elements.append(Element(type="table", text=txt))
+
+    return categorized_elements
+
+
+class CustomPDFLoader:
     def __init__(self, file_path):
         self.file_path = file_path
-        self.pipeline_options = PdfPipelineOptions(do_table_structure=True)
-        self.pipeline_options.table_structure_options.do_cell_matching = False
-        self.pipeline_options.table_structure_options.mode = TableFormerMode.ACCURATE
-        self.doc_converter = DocumentConverter(
-            format_options={
-                InputFormat.PDF: PdfFormatOption(pipeline_options=self.pipeline_options)
-            }
-        )
-        self.chunker = HybridChunker(tokenizer="BAAI/bge-m3")
 
     def load(self) -> list[Document]:
-        # Convert PDF to Docling document
-        result = self.doc_converter.convert(self.file_path)
-
-        # Get chunks using HybridChunker
-        chunks = list(self.chunker.chunk(result.document))
-        if not chunks:
+        elements = table_chunking(self.file_path)
+        if not elements:
             return []
 
         docs = []
         filename = os.path.basename(self.file_path)
         filename = filename[:filename.rindex('.')].lower()
 
-        for i, chunk in enumerate(chunks):
+        # Text elements
+        text_elements = [e for e in elements if e.type == 'text']
+        for elem in text_elements:
             docs.append(Document(
-                page_content=chunk.text,
+                page_content=elem.text,
                 metadata={
                     "filename": filename,
-                    "hash": hashlib.md5(chunk.text.encode()).hexdigest(),
-                    "type": "markdown",
-                    "headings": chunk.meta.headings if chunk.meta.headings else [],
-                    "page_numbers": list(set(
-                        item.prov[0].page_no
-                        for item in chunk.meta.doc_items
-                        if item.prov
-                    ))
+                    "hash": hashlib.md5(elem.text.encode()).hexdigest(),
+                    "type": "text"
+                }
+            ))
+
+        # Table elements
+        table_elements = filter(lambda x: x.type == "table", elements)
+        summary_prompt = ChatPromptTemplate.from_template("""
+        Provide a comprehensive and accurate description of the following table. 
+        - Include all figures and facts without adding any information not present in the table.
+        - Describe the purpose of the table and summarize the content.
+        - Detail the values in each row and column clearly.
+
+        Table Data:
+        {element}
+        """)
+
+        llm = ChatOllama(
+            base_url=os.getenv("OLLAMA_BASE_URL"),
+            temperature=0,
+            cache=False,  # TODO: Maybe true ?
+            model=os.getenv("MODEL_NAME"),
+            seed=42
+        )
+        table_texts = [e.text for e in table_elements]
+        chain = {"element": lambda x: x} | summary_prompt | llm
+
+        # Process table summaries in batches
+        for summary, text in zip(chain.batch(table_texts, {"max_concurrency": 5}), table_texts):
+            docs.append(Document(
+                page_content=summary.content,
+                metadata={
+                    "filename": filename,
+                    "hash": hashlib.md5(summary.content.encode()).hexdigest(),
+                    "original_content": text,
+                    "type": "table"
                 }
             ))
 
@@ -208,7 +255,7 @@ class Loader:
                 )
         else:
             if file_ext == "pdf":
-                return DoclingLoader(file_path)
+                loader = CustomPDFLoader(file_path)
             elif file_ext == "csv":
                 loader = CSVLoader(file_path)
             elif file_ext == "rst":

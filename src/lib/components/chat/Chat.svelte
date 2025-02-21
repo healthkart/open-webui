@@ -117,9 +117,8 @@
 
 	let selectedToolIds = [];
 	let imageGenerationEnabled = false;
+	let webSearchEnabled = false;
 	let codeInterpreterEnabled = false;
-	let webSearchEnabled = $settings?.alwaysOnWebSearch ?? false;
-
 	let chat = null;
 	let tags = [];
 
@@ -719,9 +718,7 @@
 		if ($page.url.searchParams.get('web-search') === 'true') {
 			webSearchEnabled = true;
 		}
-if($settings?.alwaysOnWebSearch) {
-			webSearchEnabled = true;
-		}
+
 		if ($page.url.searchParams.get('image-generation') === 'true') {
 			imageGenerationEnabled = true;
 		}
@@ -841,6 +838,7 @@ if($settings?.alwaysOnWebSearch) {
 				timestamp: m.timestamp,
 				...(m.sources ? { sources: m.sources } : {})
 			})),
+			model_item: $models.find((m) => m.id === modelId),
 			chat_id: chatId,
 			session_id: $socket?.id,
 			id: responseMessageId
@@ -899,6 +897,7 @@ if($settings?.alwaysOnWebSearch) {
 				...(m.sources ? { sources: m.sources } : {})
 			})),
 			...(event ? { event: event } : {}),
+			model_item: $models.find((m) => m.id === modelId),
 			chat_id: chatId,
 			session_id: $socket?.id,
 			id: responseMessageId
@@ -1229,7 +1228,7 @@ if($settings?.alwaysOnWebSearch) {
 			selectedModels = _selectedModels;
 		}
 
-		if (userPrompt === '') {
+		if (userPrompt === '' && files.length === 0) {
 			toast.error($i18n.t('Please enter a prompt'));
 			return;
 		}
@@ -1242,7 +1241,7 @@ if($settings?.alwaysOnWebSearch) {
 			// Response not done
 			return;
 		}
-		if (messages.length != 0 && messages.at(-1).error) {
+		if (messages.length != 0 && messages.at(-1).error && !messages.at(-1).content) {
 			// Error in response
 			toast.error($i18n.t(`Oops! There was an error in the previous response.`));
 			return;
@@ -1481,7 +1480,7 @@ if($settings?.alwaysOnWebSearch) {
 			params?.stream_response ??
 			true;
 
-		const messages = [
+		let messages = [
 			params?.system || $settings.system || (responseMessage?.userContext ?? null)
 				? {
 						role: 'system',
@@ -1502,8 +1501,9 @@ if($settings?.alwaysOnWebSearch) {
 				...message,
 				content: removeDetails(message.content, ['reasoning', 'code_interpreter'])
 			}))
-		]
-			.filter((message) => message?.content?.trim())
+		].filter((message) => message);
+
+		messages = messages
 			.map((message, idx, arr) => ({
 				role: message.role,
 				...((message.files?.filter((file) => file.type === 'image').length > 0 ?? false) &&
@@ -1527,7 +1527,8 @@ if($settings?.alwaysOnWebSearch) {
 					: {
 							content: message?.merged?.content ?? message.content
 						})
-			}));
+			}))
+			.filter((message) => message?.role === 'user' || message?.content?.trim());
 
 		const res = await generateOpenAIChatCompletion(
 			localStorage.token,
@@ -1553,9 +1554,21 @@ if($settings?.alwaysOnWebSearch) {
 				tool_ids: selectedToolIds.length > 0 ? selectedToolIds : undefined,
 
 				features: {
-					image_generation: imageGenerationEnabled,
-					code_interpreter: codeInterpreterEnabled,
-					web_search: webSearchEnabled
+					image_generation:
+						$config?.features?.enable_image_generation &&
+						($user.role === 'admin' || $user?.permissions?.features?.image_generation)
+							? imageGenerationEnabled
+							: false,
+					code_interpreter:
+						$config?.features?.enable_code_interpreter &&
+						($user.role === 'admin' || $user?.permissions?.features?.code_interpreter)
+							? codeInterpreterEnabled
+							: false,
+					web_search:
+						$config?.features?.enable_web_search &&
+						($user.role === 'admin' || $user?.permissions?.features?.web_search)
+							? webSearchEnabled || ($settings?.webSearch ?? false) === 'always'
+							: false
 				},
 				variables: {
 					...getPromptVariables(
@@ -1563,6 +1576,7 @@ if($settings?.alwaysOnWebSearch) {
 						$settings?.userLocation ? await getAndUpdateUserLocation(localStorage.token) : undefined
 					)
 				},
+				model_item: $models.find((m) => m.id === model.id),
 
 				session_id: $socket?.id,
 				chat_id: $chatId,
@@ -1573,7 +1587,7 @@ if($settings?.alwaysOnWebSearch) {
 					(messages.length == 2 &&
 						messages.at(0)?.role === 'system' &&
 						messages.at(1)?.role === 'user')) &&
-				selectedModels[0] === model.id
+				(selectedModels[0] === model.id || atSelectedModel !== undefined)
 					? {
 							background_tasks: {
 								title_generation: $settings?.title?.auto ?? true,
@@ -1882,7 +1896,7 @@ if($settings?.alwaysOnWebSearch) {
 			/>
 
 			<div
-				class="absolute top-0 left-0 w-full h-full bg-gradient-to-t from-white to-white/85 dark:from-gray-900 dark:to-[#171717]/90 z-0"
+				class="absolute top-0 left-0 w-full h-full bg-linear-to-t from-white to-white/85 dark:from-gray-900 dark:to-gray-900/90 z-0"
 			/>
 		{/if}
 
@@ -1998,7 +2012,7 @@ if($settings?.alwaysOnWebSearch) {
 									}
 								}}
 								on:submit={async (e) => {
-									if (e.detail) {
+									if (e.detail || files.length > 0) {
 										await tick();
 										submitPrompt(
 											($settings?.richTextInput ?? true)
@@ -2041,7 +2055,7 @@ if($settings?.alwaysOnWebSearch) {
 									}
 								}}
 								on:submit={async (e) => {
-									if (e.detail) {
+									if (e.detail || files.length > 0) {
 										await tick();
 										submitPrompt(
 											($settings?.richTextInput ?? true)

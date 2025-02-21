@@ -224,8 +224,10 @@ class CustomPDFLoader:
         table_elements = filter(lambda x: x.type == "table", elements)
         summary_prompt = ChatPromptTemplate.from_template("""
         Provide a comprehensive and accurate description of the following table. 
-        - **Include all facts and figures present in table without a skip or adding any irrelevant.**
-        - Describe the purpose of the table.
+        - Include all figures and facts without adding any information not present in the table.
+        - Describe the purpose of the table and summarize the content.
+        - Detail the values in each row and column clearly.
+
         Table Data:
         {element}
         """)

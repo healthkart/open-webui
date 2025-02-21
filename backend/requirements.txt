@@ -63,10 +63,10 @@ pymdown-extensions==10.14.2
 docx2txt==0.8
 python-pptx==1.0.0
 unstructured==0.16.11
-unstructured-inference==0.7.36
+unstructured-inference==0.8.7
 paddlepaddle==2.6.2
 unstructured.paddleocr==2.8.1.0
-pdfminer.six==20231228
+pdfminer.six==20240706
 pi_heif
 nltk==3.9.1
 Markdown==3.7

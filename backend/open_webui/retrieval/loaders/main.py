@@ -7,6 +7,7 @@ import itertools
 from dataclasses import dataclass
 
 from langchain_community.retrievers.kendra import combined_text
+from openai import api_key
 from unstructured.partition.pdf import partition_pdf
 from unstructured.documents.elements import Table, Title, NarrativeText, Header
 import sys
@@ -25,7 +26,7 @@ from langchain_community.document_loaders import (
     UnstructuredRSTLoader,
     UnstructuredXMLLoader,
 )
-from langchain_ollama import ChatOllama
+from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.documents import Document
 from open_webui.env import SRC_LOG_LEVELS, GLOBAL_LOG_LEVEL
@@ -229,8 +230,9 @@ class CustomPDFLoader:
         {element}
         """)
 
-        llm = ChatOllama(
-            base_url=config.OLLAMA_BASE_URL,
+        llm = ChatOpenAI(
+            base_url=config.OPENAI_API_BASE_URLS.value[0],
+            api_key=config.OPENAI_API_KEYS.value[0],
             temperature=0,
             cache=False,  # TODO: Maybe true ?
             model=os.getenv("MODEL_NAME"),

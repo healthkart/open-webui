@@ -3,10 +3,14 @@ import logging
 import ftfy
 import os
 import hashlib
-import pandas as pd
+import itertools
 from dataclasses import dataclass
+
+from langchain_community.retrievers.kendra import combined_text
 from unstructured.partition.pdf import partition_pdf
+from unstructured.documents.elements import Table, Title, NarrativeText, Header
 import sys
+from open_webui import config
 
 from langchain_community.document_loaders import (
     BSHTMLLoader,
@@ -17,11 +21,9 @@ from langchain_community.document_loaders import (
     TextLoader,
     UnstructuredEPubLoader,
     UnstructuredExcelLoader,
-    UnstructuredMarkdownLoader,
     UnstructuredPowerPointLoader,
     UnstructuredRSTLoader,
     UnstructuredXMLLoader,
-    YoutubeLoader,
 )
 from langchain_ollama import ChatOllama
 from langchain_core.prompts import ChatPromptTemplate
@@ -96,31 +98,77 @@ class Element:
     text: str
 
 
+def combine_elements(elements):
+    current_elements = []
+    current_table_elements = []
+    combined_elements = []
+    skip_next = False
+    elems = list(itertools.chain(*[d.metadata.orig_elements for d in elements]))
+    for i, element in enumerate(elems):
+        if skip_next:
+            skip_next = False
+            continue
+        if isinstance(element, Header):
+            continue
+
+        if isinstance(element, Title) and i + 1 < len(elems) and isinstance(elems[i + 1], Table):
+            current_table_elements.append(element)
+            current_table_elements.append(elems[i + 1])
+            skip_next = True
+        elif isinstance(element, NarrativeText) and i - 1 > 0 and isinstance(elems[i - 1], Table):
+            current_table_elements.append(element)
+        else:
+            if current_table_elements:
+                combined_elements.append(merge_elements(current_table_elements))
+                current_table_elements = []
+
+            if isinstance(element, Title) and current_elements:
+                combined_elements.append(merge_elements(current_elements))
+                current_elements = [element]
+            else:
+                current_elements.append(element)
+
+    if current_elements:
+        combined_elements.append(merge_elements(current_elements))
+    elif current_table_elements:
+        combined_elements.append(merge_elements(current_table_elements))
+
+    return combined_elements
+
+
+def merge_elements(elements):
+    combined_text = None
+    type = 'text'
+    for element in elements:
+        if isinstance(element, Table):
+            type = 'table'
+            if combined_text:
+                combined_text = f'{combined_text}\n\n{element.metadata.text_as_html}'
+            else:
+                combined_text = element.metadata.text_as_html
+        else:
+            if combined_text:
+                combined_text = f'{combined_text}\n\n{element.text}'
+            else:
+                combined_text = element.text
+
+    return Element(type=type, text=combined_text)
+
+
 def table_chunking(file_path):
     raw_pdf_elements = partition_pdf(
         file_path,
-        extract_images_in_pdf=False,
         infer_table_structure=True,
         chunking_strategy='by_title',
-        max_characters=4000,
-        new_after_n_chars=3800,
-        combine_text_under_n_chars=2000,
         strategy='hi_res',
-        languages=["en"]
+        extract_tables=True,
+        max_characters=3000,
+        new_after_n_chars=2800,
+        combine_text_under_n_chars=200,
+        languages=['en']
     )
 
-    categorized_elements = []
-    for i, element in enumerate(raw_pdf_elements):
-        if 'CompositeElement' in element.category:
-            categorized_elements.append(Element(type="text", text=element.text))
-        elif 'Table' == element.category:
-            if raw_pdf_elements[i - 1].metadata.orig_elements[-1].category == 'Title':
-                txt = f'{raw_pdf_elements[i - 1].metadata.orig_elements[-1].text}\n{element.metadata.text_as_html}'
-            else:
-                txt = element.metadata.text_as_html
-            categorized_elements.append(Element(type="table", text=txt))
-
-    return categorized_elements
+    return combine_elements(raw_pdf_elements)
 
 
 class CustomPDFLoader:
@@ -138,30 +186,51 @@ class CustomPDFLoader:
 
         # Text elements
         text_elements = [e for e in elements if e.type == 'text']
+        current_doc = None
         for elem in text_elements:
+            if current_doc:
+                combined_texts = f'{current_doc.page_content}\n{elem.text}'
+            else:
+                combined_texts = elem.text
+
+            if len(combined_texts) <= config.CHUNK_SIZE.value:
+                current_doc = Document(
+                    page_content=combined_texts
+                )
+            else:
+                docs.append(Document(
+                    page_content=current_doc.page_content,
+                    metadata={
+                        "filename": filename,
+                        "hash": hashlib.md5(current_doc.page_content.encode()).hexdigest(),
+                        "type": "text"
+                    }
+                ))
+                current_doc = None
+
+        if current_doc:
             docs.append(Document(
-                page_content=elem.text,
+                page_content=current_doc.page_content,
                 metadata={
                     "filename": filename,
-                    "hash": hashlib.md5(elem.text.encode()).hexdigest(),
+                    "hash": hashlib.md5(current_doc.page_content.encode()).hexdigest(),
                     "type": "text"
                 }
             ))
+            current_doc = None
 
         # Table elements
         table_elements = filter(lambda x: x.type == "table", elements)
         summary_prompt = ChatPromptTemplate.from_template("""
         Provide a comprehensive and accurate description of the following table. 
-        - Include all figures and facts without adding any information not present in the table.
-        - Describe the purpose of the table and summarize the content.
-        - Detail the values in each row and column clearly.
-
+        - **Include all facts and figures present in table without a skip or adding any irrelevant.**
+        - Describe the purpose of the table.
         Table Data:
         {element}
         """)
 
         llm = ChatOllama(
-            base_url=os.getenv("OLLAMA_BASE_URL"),
+            base_url=config.OLLAMA_BASE_URL,
             temperature=0,
             cache=False,  # TODO: Maybe true ?
             model=os.getenv("MODEL_NAME"),
@@ -172,14 +241,32 @@ class CustomPDFLoader:
 
         # Process table summaries in batches
         for summary, text in zip(chain.batch(table_texts, {"max_concurrency": 5}), table_texts):
+            if current_doc:
+                combined_texts = f'{current_doc.page_content}\n\n{summary.content}'
+            else:
+                combined_texts = summary.content
+
+            if len(combined_texts) <= config.CHUNK_SIZE.value:
+                current_doc = Document(
+                    page_content=combined_texts,
+                    metadata={
+                        "filename": filename,
+                        "original_content": text,
+                        "type": "table"
+                    }
+                )
+            else:
+                docs.append(Document(
+                    page_content=current_doc.page_content,
+                    metadata={**current_doc.metadata,
+                              'hash': hashlib.md5(current_doc.page_content.encode()).hexdigest()}
+                ))
+                current_doc = None
+
+        if current_doc:
             docs.append(Document(
-                page_content=summary.content,
-                metadata={
-                    "filename": filename,
-                    "hash": hashlib.md5(summary.content.encode()).hexdigest(),
-                    "original_content": text,
-                    "type": "table"
-                }
+                page_content=current_doc.page_content,
+                metadata={**current_doc.metadata, 'hash': hashlib.md5(current_doc.page_content.encode()).hexdigest()}
             ))
 
         return docs

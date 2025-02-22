@@ -677,25 +677,26 @@ async def process_chat_payload(request, form_data, metadata, user, model):
 
         knowledge_files = []
         for item in model_knowledge:
-            if item.get("collection_name"):
-                knowledge_files.append(
-                    {
-                        "id": item.get("collection_name"),
-                        "name": item.get("name"),
-                        "legacy": True,
-                    }
-                )
-            elif item.get("collection_names"):
-                knowledge_files.append(
-                    {
-                        "name": item.get("name"),
-                        "type": "collection",
-                        "collection_names": item.get("collection_names"),
-                        "legacy": True,
-                    }
-                )
-            else:
-                knowledge_files.append(item)
+            if item.get("embed"):
+                if item.get("collection_name"):
+                    knowledge_files.append(
+                        {
+                            "id": item.get("collection_name"),
+                            "name": item.get("name"),
+                            "legacy": True,
+                        }
+                    )
+                elif item.get("collection_names"):
+                    knowledge_files.append(
+                        {
+                            "name": item.get("name"),
+                            "type": "collection",
+                            "collection_names": item.get("collection_names"),
+                            "legacy": True,
+                        }
+                    )
+                else:
+                    knowledge_files.append(item)
 
         files = form_data.get("files", [])
         files.extend(knowledge_files)
@@ -794,8 +795,9 @@ async def process_chat_payload(request, form_data, metadata, user, model):
                 log.exception(e)
 
     try:
-        form_data, flags = await chat_completion_files_handler(request, form_data, user)
-        sources.extend(flags.get("sources", []))
+        if model_knowledge and all(x['embed'] for x in model_knowledge):
+            form_data, flags = await chat_completion_files_handler(request, form_data, user)
+            sources.extend(flags.get("sources", []))
     except Exception as e:
         log.exception(e)
 

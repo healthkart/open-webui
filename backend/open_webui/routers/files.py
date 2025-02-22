@@ -65,7 +65,8 @@ def upload_file(
                 }
             ),
         )
-
+        if request.query_params.get("embed") == 'false':
+            return file_item
         try:
             process_file(request, ProcessFileForm(file_id=id), user=user)
             file_item = Files.get_file_by_id(id=id)

@@ -119,7 +119,7 @@ async def chat_completion_tools_handler(
         user_message = get_last_user_message(messages)
         history = "\n".join(
             f"{message['role'].upper()}: \"\"\"{message['content']}\"\"\""
-            for message in messages[::-1][:4]
+            for message in messages[::-1][:3]
         )
 
         prompt = f"History:\n{history}\nQuery: {user_message}"
@@ -177,7 +177,7 @@ async def chat_completion_tools_handler(
             result = json.loads(content)
 
             async def tool_call_handler(tool_call):
-                nonlocal skip_files
+                nonlocal skip_files, skip_rag
 
                 log.debug(f"{tool_call=}")
 

@@ -1,28 +1,21 @@
 import logging
 import os
-import uuid
 from typing import Optional, Union
 
-import asyncio
 import requests
-
 from huggingface_hub import snapshot_download
 from langchain.retrievers import ContextualCompressionRetriever, EnsembleRetriever
 from langchain_community.retrievers import BM25Retriever
 from langchain_core.documents import Document
 
-
 from open_webui.config import VECTOR_DB
-from open_webui.retrieval.vector.connector import VECTOR_DB_CLIENT
-from open_webui.utils.misc import get_last_user_message, calculate_sha256_string
-
-from open_webui.models.users import UserModel
-
 from open_webui.env import (
     SRC_LOG_LEVELS,
     OFFLINE_MODE,
     ENABLE_FORWARD_USER_INFO_HEADERS,
 )
+from open_webui.models.users import UserModel
+from open_webui.retrieval.vector.connector import VECTOR_DB_CLIENT
 
 log = logging.getLogger(__name__)
 log.setLevel(SRC_LOG_LEVELS["RAG"])

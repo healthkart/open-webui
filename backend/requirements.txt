@@ -53,9 +53,6 @@ transformers
 sentence-transformers==3.3.1
 colbert-ai==0.2.21
 einops==0.8.0
-pylate
-torch
-flash_attn
 
 ftfy==6.2.3
 pypdf==4.3.1

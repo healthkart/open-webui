@@ -119,9 +119,9 @@ def replace_messages_variable(
         if full_match == "{{MESSAGES}}":
             return get_messages_content(messages)
         elif start_length is not None:
-            return get_messages_content(messages[: int(start_length)])
+            return get_messages_content(messages[: int(start_length)][::-2])
         elif end_length is not None:
-            return get_messages_content(messages[-int(end_length) :])
+            return get_messages_content(messages[-int(end_length) :][::-2])
         elif middle_length is not None:
             mid = int(middle_length)
 

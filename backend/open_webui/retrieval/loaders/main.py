@@ -141,12 +141,12 @@ def merge_elements(elements):
         if isinstance(element, Table):
             type = 'table'
             if combined_text:
-                combined_text = f'{combined_text}\n\n{element.metadata.text_as_html}'
+                combined_text = f'{combined_text}\n{element.metadata.text_as_html}'
             else:
                 combined_text = element.metadata.text_as_html
         else:
             if combined_text:
-                combined_text = f'{combined_text}\n\n{element.text}'
+                combined_text = f'{combined_text}\n{element.text}'
             else:
                 combined_text = element.text
 
@@ -182,10 +182,79 @@ class CustomPDFLoader:
         filename = os.path.basename(self.file_path)
         filename = filename[:filename.rindex('.')].lower()
 
-        # Text elements
-        text_elements = [e for e in elements if e.type == 'text']
+        summary_prompt = ChatPromptTemplate.from_template("""
+                 You are an expert report writer specializing in summarizing tabular data for seminar presentations. Your task is to analyze the provided HTML code representing a table and extract all relevant information to create a detailed report suitable for a seminar audience.
+
+                **Input:** You will receive an HTML code snippet containing a table.
+
+                **Output:** Generate a report summarizing the table's content. The report must be formatted as a series of bullet points, with each bullet point representing a distinct piece of information from the table. Ensure the report is comprehensive and covers all details present in the table. The report should be understandable and informative to a seminar audience.
+
+                **Instructions:**
+
+                1.  **Understand the HTML:** Carefully examine the provided HTML code to understand the structure and content of the table. Identify table headers ( `<th>` ) and data cells ( `<td>` ).
+                2.  **Extract Data:** Extract all the data present in the table, including headers and cell values.
+                3.  **Synthesize Information:** Combine the extracted data into meaningful statements. For example, if a table has columns "Name" and "Age", a row with "John" and "30" should be represented as "Name: John, Age: 30". If a cell is empty, represent it as "N/A" or "Not Available" unless the context suggests a better alternative.
+                4.  **Format as Bullet Points:** Present the synthesized information as a series of bullet points. Each bullet point should represent a distinct piece of information from the table.
+                5.  **Comprehensive Coverage:** Ensure that the report covers all the details present in the table. Do not omit any relevant information. Include information from the table header ( `<th>` ) for context.
+                6.  **Clarity and Readability:** The report should be clear, concise, and easy to understand for a seminar audience. Use descriptive language to explain the data. Avoid technical jargon unless it is necessary and well-defined.
+                7.  **No Table Structure:** Do not attempt to recreate the table structure in the report. The report should be a textual summary of the table's content.
+                8.  **Handle Complex Tables:** If the table contains nested tables or complex structures, focus on extracting the primary data and presenting it in a clear and understandable manner.
+                9. **Follow the example format strictly.**
+
+                **Example:**
+
+                **HTML Input:**  
+                ```html      
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Name</th>
+                      <th>Age</th>
+                      <th>City</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td>Alice</td>
+                      <td>25</td>
+                      <td>New York</td>
+                    </tr>
+                    <tr>
+                      <td>Bob</td>
+                      <td>30</td>
+                      <td>London</td>
+                    </tr>
+                    <tr>
+                      <td>Charlie</td>
+                      <td></td>
+                      <td>Paris</td>
+                    </tr>
+                  </tbody>
+                </table>
+
+                **Report Output:**
+                Name: Alice, Age: 25, City: New York
+                Name: Bob, Age: 30, City: London
+                Name: Charlie, Age: Not Available, City: Paris
+                ### Now, analyze the following HTML code and generate the report:
+
+                ```html
+                  {element}
+                """)
+
+        llm = ChatOpenAI(
+            base_url=config.OPENAI_API_BASE_URLS.value[0],
+            api_key=config.OPENAI_API_KEYS.value[0],
+            temperature=0,
+            cache=False,  # TODO: Maybe true ?
+            model=os.getenv("MODEL_NAME"),
+            seed=42
+        )
         current_doc = None
-        for elem in text_elements:
+        for elem in elements:
+            if elem.type == "table":
+                chain = {"element": lambda x: x} | summary_prompt | llm
+                elem.text = chain.invoke(elem.text).content
             if current_doc:
                 combined_texts = f'{current_doc.page_content}\n{elem.text}'
             else:
@@ -214,110 +283,6 @@ class CustomPDFLoader:
                     "hash": hashlib.md5(current_doc.page_content.encode()).hexdigest(),
                     "type": "text"
                 }
-            ))
-            current_doc = None
-
-        # Table elements
-        table_elements = filter(lambda x: x.type == "table", elements)
-        summary_prompt = ChatPromptTemplate.from_template("""
-         You are an expert report writer specializing in summarizing tabular data for seminar presentations. Your task is to analyze the provided HTML code representing a table and extract all relevant information to create a detailed report suitable for a seminar audience.
-
-        **Input:** You will receive an HTML code snippet containing a table.
-        
-        **Output:** Generate a report summarizing the table's content. The report must be formatted as a series of bullet points, with each bullet point representing a distinct piece of information from the table. Ensure the report is comprehensive and covers all details present in the table. The report should be understandable and informative to a seminar audience.
-        
-        **Instructions:**
-        
-        1.  **Understand the HTML:** Carefully examine the provided HTML code to understand the structure and content of the table. Identify table headers ( `<th>` ) and data cells ( `<td>` ).
-        2.  **Extract Data:** Extract all the data present in the table, including headers and cell values.
-        3.  **Synthesize Information:** Combine the extracted data into meaningful statements. For example, if a table has columns "Name" and "Age", a row with "John" and "30" should be represented as "Name: John, Age: 30". If a cell is empty, represent it as "N/A" or "Not Available" unless the context suggests a better alternative.
-        4.  **Format as Bullet Points:** Present the synthesized information as a series of bullet points. Each bullet point should represent a distinct piece of information from the table.
-        5.  **Comprehensive Coverage:** Ensure that the report covers all the details present in the table. Do not omit any relevant information. Include information from the table header ( `<th>` ) for context.
-        6.  **Clarity and Readability:** The report should be clear, concise, and easy to understand for a seminar audience. Use descriptive language to explain the data. Avoid technical jargon unless it is necessary and well-defined.
-        7.  **No Table Structure:** Do not attempt to recreate the table structure in the report. The report should be a textual summary of the table's content.
-        8.  **Handle Complex Tables:** If the table contains nested tables or complex structures, focus on extracting the primary data and presenting it in a clear and understandable manner.
-        9. **Follow the example format strictly.**
-        
-        **Example:**
- 
-        **HTML Input:**  
-        ```html      
-        <table>
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Age</th>
-              <th>City</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>Alice</td>
-              <td>25</td>
-              <td>New York</td>
-            </tr>
-            <tr>
-              <td>Bob</td>
-              <td>30</td>
-              <td>London</td>
-            </tr>
-            <tr>
-              <td>Charlie</td>
-              <td></td>
-              <td>Paris</td>
-            </tr>
-          </tbody>
-        </table>
-        
-        **Report Output:**
-        Name: Alice, Age: 25, City: New York
-        Name: Bob, Age: 30, City: London
-        Name: Charlie, Age: Not Available, City: Paris
-        ### Now, analyze the following HTML code and generate the report:
-        
-        ```html
-          {element}
-        """)
-
-        llm = ChatOpenAI(
-            base_url=config.OPENAI_API_BASE_URLS.value[0],
-            api_key=config.OPENAI_API_KEYS.value[0],
-            temperature=0,
-            cache=False,  # TODO: Maybe true ?
-            model=os.getenv("MODEL_NAME"),
-            seed=42
-        )
-        table_texts = [e.text for e in table_elements]
-        chain = {"element": lambda x: x} | summary_prompt | llm
-
-        # Process table summaries in batches
-        for summary, text in zip(chain.batch(table_texts, {"max_concurrency": 5}), table_texts):
-            if current_doc:
-                combined_texts = f'{current_doc.page_content}\n\n{summary.content}'
-            else:
-                combined_texts = summary.content
-
-            if len(combined_texts) <= config.CHUNK_SIZE.value:
-                current_doc = Document(
-                    page_content=combined_texts,
-                    metadata={
-                        "filename": filename,
-                        "original_content": text,
-                        "type": "table"
-                    }
-                )
-            else:
-                docs.append(Document(
-                    page_content=current_doc.page_content,
-                    metadata={**current_doc.metadata,
-                              'hash': hashlib.md5(current_doc.page_content.encode()).hexdigest()}
-                ))
-                current_doc = None
-
-        if current_doc:
-            docs.append(Document(
-                page_content=current_doc.page_content,
-                metadata={**current_doc.metadata, 'hash': hashlib.md5(current_doc.page_content.encode()).hexdigest()}
             ))
 
         return docs

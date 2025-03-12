@@ -1335,7 +1335,7 @@ DEFAULT_TOOLS_FUNCTION_CALLING_PROMPT_TEMPLATE = """Available Tools: {{TOOLS}}
 
 Your task is to choose and return the correct tool(s) from the list of available tools based on the query. Follow these guidelines:
 
-- Return only the JSON object, without any additional text or explanation.
+- **Response Formatting:** Always return a valid JSON object, without any additional text or explanation.
 
 - If no tools match the query, return an empty array: 
    {
@@ -1345,8 +1345,9 @@ Your task is to choose and return the correct tool(s) from the list of available
 - If one or more tools match the query, construct a JSON response containing a "tool_calls" array with objects that include:
    - "name": The tool's name.
    - "parameters": A dictionary of required parameters and their corresponding values.
+- Responses must be **direct**. Do **not** generate a **full conversation, back-and-forth exchanges, or dialogue-style responses** that contains words like `sometext. assistant:....`, `sometext. response:.....`.
 
-The format for the JSON response is strictly:
+The format for the **JSON response** is strictly:
 {
   "tool_calls": [
     {"name": "toolName1", "parameters": {"key1": "value1"}},

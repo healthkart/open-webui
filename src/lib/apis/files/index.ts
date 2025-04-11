@@ -5,7 +5,7 @@ export const uploadFile = async (token: string, file: File, embed: boolean=true)
 	data.append('file', file);
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/files/?embed=${embed}`, {
+	const res = await fetch(`${WEBUI_API_BASE_URL}/files/?process=${embed}`, {
 		method: 'POST',
 		headers: {
 			Accept: 'application/json',

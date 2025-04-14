@@ -181,7 +181,7 @@ async def chat_completion_tools_handler(
                     }
 
                     if tool.get("direct", False):
-                        tool_result, skip_rag = await event_caller(
+                        tool_result = await event_caller(
                             {
                                 "type": "execute:tool",
                                 "data": {
@@ -193,6 +193,7 @@ async def chat_completion_tools_handler(
                                 },
                             }
                         )
+                        skip_rag = True
                     else:
                         tool_function = tool["callable"]
                         tool_result, skip_rag = await tool_function(**tool_function_params)

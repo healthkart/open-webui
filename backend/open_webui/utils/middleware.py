@@ -181,7 +181,7 @@ async def chat_completion_tools_handler(
                     }
 
                     if tool.get("direct", False):
-                        tool_result = await event_caller(
+                        tool_result = str(await event_caller(
                             {
                                 "type": "execute:tool",
                                 "data": {
@@ -192,11 +192,16 @@ async def chat_completion_tools_handler(
                                     "session_id": metadata.get("session_id", None),
                                 },
                             }
-                        )
+                        ))
                         skip_rag = True
                     else:
                         tool_function = tool["callable"]
-                        tool_result, skip_rag = await tool_function(**tool_function_params)
+                        tool_result = await tool_function(**tool_function_params)
+                        if isinstance(tool_result, tuple):
+                            tool_result, skip_rag = tool_result
+                        else:
+                            tool_result = str(tool_result)
+                            skip_rag = True
 
                 except Exception as e:
                     tool_result = str(e)

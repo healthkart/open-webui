@@ -1469,3 +1469,6 @@ else:
         f"Frontend build directory not found at '{FRONTEND_BUILD_DIR}'. Serving API only."
     )
 
+# if __name__ == '__main__':
+#     import uvicorn
+#     uvicorn.run(app, port=9000)

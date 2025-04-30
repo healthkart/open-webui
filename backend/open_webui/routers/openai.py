@@ -611,7 +611,8 @@ async def generate_chat_completion(
 
         params = model_info.params.model_dump()
         payload = apply_model_params_to_body_openai(params, payload)
-        payload = apply_model_system_prompt_to_body(params, payload, metadata, user)
+        if not (form_data.get('metadata', None) and 'function_calling' == form_data.get('metadata').get('task')):
+            payload = apply_model_system_prompt_to_body(params, payload, metadata, user)
 
         # Check if user has access to the model
         if not bypass_filter and user.role == "user":

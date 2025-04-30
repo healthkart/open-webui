@@ -12,6 +12,7 @@ from concurrent.futures import ThreadPoolExecutor
 from typing import Optional
 from uuid import uuid4
 
+from click import prompt
 from fastapi import Request, HTTPException
 from starlette.responses import Response, StreamingResponse
 
@@ -92,21 +93,23 @@ async def chat_completion_tools_handler(
             content = response["choices"][0]["message"]["content"]
         return content
 
-    def get_tools_function_calling_payload(messages, task_model_id, content):
+    def get_tools_function_calling_payload(messages, task_model_id, content, include_history: bool = False):
         user_message = get_last_user_message(messages)
-        '''
-        history = "\n".join(
-            f"{message['role'].upper()}: \"\"\"{message['content']}\"\"\""
-            for message in messages[::-1][:3]
-        )
+        if include_history:
+            history = "\n".join(
+                f"{message['role'].upper()}: \"\"\"{message['content']}\"\"\""
+                for message in messages[::-1][:3]
+            )
 
-        prompt = f"History:\n{history}\nQuery: {user_message}"
-        '''
+            prompt = f"History:\n{history}\nQuery: {user_message}"
+        else:
+            prompt = user_message
+
         return {
             "model": task_model_id,
             "messages": [
                 {"role": "system", "content": content},
-                {"role": "user", "content": f"Query: {user_message}"},
+                {"role": "user", "content": f"Query: {prompt}"},
             ],
             "stream": False,
             "metadata": {"task": str(TASKS.FUNCTION_CALLING)},
@@ -126,6 +129,7 @@ async def chat_completion_tools_handler(
     sources = []
 
     specs = [tool["spec"] for tool in tools.values()]
+    include_history = any([tool["mcp"] for tool in tools.values()])
     tools_specs = json.dumps(specs)
 
     if request.app.state.config.TOOLS_FUNCTION_CALLING_PROMPT_TEMPLATE != "":
@@ -137,7 +141,7 @@ async def chat_completion_tools_handler(
         template, tools_specs
     )
     payload = get_tools_function_calling_payload(
-        body["messages"], task_model_id, tools_function_calling_prompt
+        body["messages"], task_model_id, tools_function_calling_prompt, include_history
     )
     skip_rag = False
     try:

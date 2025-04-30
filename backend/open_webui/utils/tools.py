@@ -94,6 +94,7 @@ def get_tools(
                     )
 
                     tool_dict = {
+                        "mcp": True,
                         "tool_id": tool_id,
                         "callable": callable,
                         "spec": spec,

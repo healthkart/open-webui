@@ -183,5 +183,6 @@
 			onAddMessages({ modelId, parentId, messages });
 			closeFloatingButtons();
 		}}
+		editMessage={editMessage} 
 	/>
 {/if}

@@ -11,6 +11,7 @@
 
 	import ChatBubble from '$lib/components/icons/ChatBubble.svelte';
 	import LightBlub from '$lib/components/icons/LightBlub.svelte';
+	import PencilSquare from '$lib/components/icons/PencilSquare.svelte';
 	import Markdown from '../Messages/Markdown.svelte';
 	import Skeleton from '../Messages/Skeleton.svelte';
 
@@ -18,6 +19,8 @@
 	export let model = null;
 	export let messages = [];
 	export let onAdd = () => {};
+	export let editMessage: (messageId: string, newContent: string, submit?: boolean) => void;
+
 
 	let floatingInput = false;
 
@@ -193,24 +196,128 @@
 		}
 	};
 
-	const addHandler = async () => {
-		const messages = [
-			{
-				role: 'user',
-				content: prompt
-			},
-			{
-				role: 'assistant',
-				content: responseContent
-			}
-		];
+	const rewriteHandler = async () => {
+		if (!model) {
+			toast.error('Model not selected');
+			return;
+		}
+		const rewriteText = $i18n.t('Rewrite these lines and generate the updated full HTML.');
+		prompt = `${rewriteText}\n\n\`\`\`\n${selectedText}\n\`\`\``;
 
+		responseContent = '';
+		const [res, controller] = await chatCompletion(localStorage.token, {
+			model: model,
+			messages: [
+				...messages,
+				{
+					role: 'user',
+					content: prompt
+				}
+			].map((message) => ({
+				role: message.role,
+				content: message.content
+			})),
+			stream: true // Enable streaming
+		});
+
+		if (res && res.ok) {
+			const reader = res.body.getReader();
+			const decoder = new TextDecoder();
+
+			const processStream = async () => {
+				while (true) {
+					// Read data chunks from the response stream
+					const { done, value } = await reader.read();
+					if (done) {
+						break;
+					}
+
+					// Decode the received chunk
+					const chunk = decoder.decode(value, { stream: true });
+
+					// Process lines within the chunk
+					const lines = chunk.split('\n').filter((line) => line.trim() !== '');
+
+					for (const line of lines) {
+						if (line.startsWith('data: ')) {
+							if (line.startsWith('data: [DONE]')) {
+								responseDone = true;
+
+								await tick();
+								autoScroll();
+								continue;
+							} else {
+								// Parse the JSON chunk
+								try {
+									const data = JSON.parse(line.slice(6));
+
+									// Append the `content` field from the "choices" object
+									if (data.choices && data.choices[0]?.delta?.content) {
+										responseContent += data.choices[0].delta.content;
+
+										autoScroll();
+									}
+								} catch (e) {
+									console.error(e);
+								}
+							}
+						}
+					}
+				}
+			};
+
+			// Process the stream in the background
+			await processStream();
+		} else {
+			toast.error('An error occurred while fetching the explanation');
+		}
+	};
+
+	const addHandler = async () => {
+	await tick();
+
+	if (prompt.includes('Rewrite these lines') && selectedText && responseContent) {
+		// It's a Rewrite use case.
+		editMessage(id, responseContent, false);  // id is message id
+	} else {
+		// It's Ask or Explain
 		onAdd({
 			modelId: model,
 			parentId: id,
-			messages: messages
+			messages: [
+				{
+					role: 'user',
+					content: prompt
+				},
+				{
+					role: 'assistant',
+					content: responseContent
+				}
+			]
 		});
-	};
+	}
+	// closeHandler();
+};
+
+
+	// const addHandler = async () => {
+	// 	const messages = [
+	// 		{
+	// 			role: 'user',
+	// 			content: prompt
+	// 		},
+	// 		{
+	// 			role: 'assistant',
+	// 			content: responseContent
+	// 		}
+	// 	];
+
+	// 	onAdd({
+	// 		modelId: model,
+	// 		parentId: id,
+	// 		messages: messages
+	// 	});
+	// };
 
 	export const closeHandler = () => {
 		responseContent = null;
@@ -259,6 +366,17 @@
 					<LightBlub className="size-3 shrink-0" />
 
 					<div class="shrink-0">{$i18n.t('Explain')}</div>
+				</button>
+				<button
+					class="px-1 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-sm flex items-center gap-1 min-w-fit"
+					on:click={() => {
+						selectedText = window.getSelection().toString();
+						rewriteHandler();
+					}}
+				>
+					<PencilSquare className="size-3 shrink-0" />
+
+					<div class="shrink-0">{$i18n.t('Rewrite')}</div>
 				</button>
 			</div>
 		{:else}

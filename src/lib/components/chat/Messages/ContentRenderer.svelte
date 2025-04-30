@@ -22,6 +22,8 @@
 
 	export let onAddMessages = () => {};
 
+	export let editMessage;
+
 	let contentContainerElement;
 
 	let floatingButtonsElement;

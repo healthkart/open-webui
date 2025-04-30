@@ -12,7 +12,6 @@ from concurrent.futures import ThreadPoolExecutor
 from typing import Optional
 from uuid import uuid4
 
-from click import prompt
 from fastapi import Request, HTTPException
 from starlette.responses import Response, StreamingResponse
 

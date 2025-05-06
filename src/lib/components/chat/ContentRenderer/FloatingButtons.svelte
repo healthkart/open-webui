@@ -201,7 +201,7 @@
 			toast.error('Model not selected');
 			return;
 		}
-		const rewriteText = $i18n.t('Rewrite these lines and generate the updated full HTML.');
+		const rewriteText = $i18n.t('Rewrite these lines and generate the updated full HTML. Do not provide any additional explanation or comments.');
 		prompt = `${rewriteText}\n\n\`\`\`\n${selectedText}\n\`\`\``;
 
 		responseContent = '';
@@ -274,50 +274,30 @@
 	};
 
 	const addHandler = async () => {
-	await tick();
+		await tick();
 
-	if (prompt.includes('Rewrite these lines') && selectedText && responseContent) {
-		// It's a Rewrite use case.
-		editMessage(id, responseContent, false);  // id is message id
-	} else {
-		// It's Ask or Explain
-		onAdd({
-			modelId: model,
-			parentId: id,
-			messages: [
-				{
-					role: 'user',
-					content: prompt
-				},
-				{
-					role: 'assistant',
-					content: responseContent
-				}
-			]
-		});
-	}
-	// closeHandler();
-};
-
-
-	// const addHandler = async () => {
-	// 	const messages = [
-	// 		{
-	// 			role: 'user',
-	// 			content: prompt
-	// 		},
-	// 		{
-	// 			role: 'assistant',
-	// 			content: responseContent
-	// 		}
-	// 	];
-
-	// 	onAdd({
-	// 		modelId: model,
-	// 		parentId: id,
-	// 		messages: messages
-	// 	});
-	// };
+		if (prompt.includes('Rewrite these lines') && selectedText && responseContent) {
+			// Add a small delay to ensure content is ready
+			await new Promise(resolve => setTimeout(resolve, 100));
+			editMessage(id, responseContent, false);  // id is message id
+		} else {
+			// It's Ask or Explain
+			onAdd({
+				modelId: model,
+				parentId: id,
+				messages: [
+					{
+						role: 'user',
+						content: prompt
+					},
+					{
+						role: 'assistant',
+						content: responseContent
+					}
+				]
+			});
+		}
+	};
 
 	export const closeHandler = () => {
 		responseContent = null;

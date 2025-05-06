@@ -42,7 +42,7 @@ from open_webui.utils.misc import (
 
 from open_webui.utils.auth import get_admin_user, get_verified_user
 from open_webui.utils.access_control import has_access
-
+from open_webui.utils.task import prompt_variables_template
 
 log = logging.getLogger(__name__)
 log.setLevel(SRC_LOG_LEVELS["OPENAI"])
@@ -611,6 +611,10 @@ async def generate_chat_completion(
 
         params = model_info.params.model_dump()
         payload = apply_model_params_to_body_openai(params, payload)
+        for message in payload.get("messages"):
+            if message["role"] == "system":
+                message['content'] = prompt_variables_template(message['content'], metadata.get("variables", {}))
+
         if not (form_data.get('metadata', None) and 'function_calling' == form_data.get('metadata').get('task')):
             payload = apply_model_system_prompt_to_body(params, payload, metadata, user)
 

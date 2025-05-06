@@ -1460,7 +1460,7 @@ Your task is to choose and return the correct tool(s) from the list of available
    - "name": The tool's name.
    - "parameters": A dictionary of required parameters and their corresponding values.
 - Responses must be **direct**. Do **not** generate a **full conversation, back-and-forth exchanges, or dialogue-style responses** that contains words like `sometext. assistant:....`, `sometext. response:.....`.
-
+- Current User is: {{CURRENT_USER}}
 The format for the **JSON response** is strictly:
 {
   "tool_calls": [

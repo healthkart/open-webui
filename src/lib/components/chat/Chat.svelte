@@ -1565,8 +1565,8 @@
 					stop:
 						(params?.stop ?? $settings?.params?.stop ?? undefined)
 							? (params?.stop.split(',').map((token) => token.trim()) ?? $settings.params.stop).map(
-									(str) => decodeURIComponent(JSON.parse('"' + str.replace(/\"/g, '\\"') + '"'))
-								)
+								(str) => decodeURIComponent(JSON.parse('"' + str.replace(/\"/g, '\\"') + '"'))
+							)
 							: undefined
 				},
 
@@ -1596,9 +1596,9 @@
 						$user?.name,
 						$settings?.userLocation
 							? await getAndUpdateUserLocation(localStorage.token).catch((err) => {
-									console.error(err);
-									return undefined;
-								})
+								console.error(err);
+								return undefined;
+							})
 							: undefined
 					)
 				},
@@ -1608,6 +1608,8 @@
 				chat_id: $chatId,
 				id: responseMessageId,
 
+				custom_model_id: selectedModels[0],
+
 				...(!$temporaryChatEnabled &&
 				(messages.length == 1 ||
 					(messages.length == 2 &&
@@ -1615,19 +1617,19 @@
 						messages.at(1)?.role === 'user')) &&
 				(selectedModels[0] === model.id || atSelectedModel !== undefined)
 					? {
-							background_tasks: {
-								title_generation: $settings?.title?.auto ?? true,
-								tags_generation: $settings?.autoTags ?? true
-							}
+						background_tasks: {
+							title_generation: $settings?.title?.auto ?? true,
+							tags_generation: $settings?.autoTags ?? true
 						}
+					}
 					: {}),
 
 				...(stream && (model.info?.meta?.capabilities?.usage ?? false)
 					? {
-							stream_options: {
-								include_usage: true
-							}
+						stream_options: {
+							include_usage: true
 						}
+					}
 					: {})
 			},
 			`${WEBUI_BASE_URL}/api`

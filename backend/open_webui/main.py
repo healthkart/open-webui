@@ -1047,6 +1047,7 @@ async def chat_completion(
     form_data: dict,
     user=Depends(get_verified_user),
 ):
+    print("INCOMING FORM DATA:", form_data)  # Debug log for custom_model_id
     if not request.app.state.MODELS:
         await get_all_models(request, user=user)
 

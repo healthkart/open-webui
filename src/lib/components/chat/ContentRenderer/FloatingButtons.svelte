@@ -201,7 +201,7 @@
 			toast.error('Model not selected');
 			return;
 		}
-		const rewriteText = $i18n.t('Rewrite these lines and generate the updated full HTML. Do not provide any additional explanation or comments.');
+		const rewriteText = $i18n.t('Rewrite these lines and regenerate the updated full response. Do not provide any additional explanation or comments.');
 		prompt = `${rewriteText}\n\n\`\`\`\n${selectedText}\n\`\`\``;
 
 		responseContent = '';

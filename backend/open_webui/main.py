@@ -1047,7 +1047,23 @@ async def chat_completion(
     form_data: dict,
     user=Depends(get_verified_user),
 ):
-    print("INCOMING FORM DATA:", form_data)  # Debug log for custom_model_id
+    print("INCOMING FORM DATA:", form_data)  # Debug log for form data
+    print("USER:", user.email if user else "No user")  # Debug log for user
+    print("FORM DATA KEYS:", form_data.keys())  # Debug log for form data keys
+    
+    # Parse variables from form data
+    try:
+        variables_str = form_data.get("variables")
+        print("Raw variables string:", variables_str)  # Debug log for raw variables
+        variables = json.loads(variables_str) if variables_str else {}
+        print("Parsed variables:", variables)  # Debug log for parsed variables
+    except json.JSONDecodeError as e:
+        print("JSON decode error:", str(e))  # Debug log for JSON error
+        variables = {}
+    except Exception as e:
+        print("Other error while parsing variables:", str(e))  # Debug log for other errors
+        variables = {}
+
     if not request.app.state.MODELS:
         await get_all_models(request, user=user)
 
@@ -1057,8 +1073,13 @@ async def chat_completion(
     try:
         if not model_item.get("direct", False):
             model_id = form_data.get("model", None)
+            print("Available models:", list(request.app.state.MODELS.keys()))
+            print("Requested model_id:", model_id)
             if model_id not in request.app.state.MODELS:
-                raise Exception("Model not found")
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Model {model_id} not found"
+                )
 
             model = request.app.state.MODELS[model_id]
             model_info = Models.get_model_by_id(model_id)
@@ -1068,7 +1089,10 @@ async def chat_completion(
                 try:
                     check_model_access(user, model)
                 except Exception as e:
-                    raise e
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail=str(e)
+                    )
         else:
             model = model_item
             model_info = None
@@ -1085,7 +1109,7 @@ async def chat_completion(
             "tool_servers": form_data.pop("tool_servers", None),
             "files": form_data.get("files", None),
             "features": form_data.get("features", None),
-            "variables": form_data.get("variables", None),
+            "variables": variables,
             "model": model,
             "direct": model_item.get("direct", False),
             **(
@@ -1108,6 +1132,7 @@ async def chat_completion(
         )
 
     except Exception as e:
+        print("CHAT COMPLETION ERROR:", e)  # Debug log for error details
         log.debug(f"Error processing chat payload: {e}")
         Chats.upsert_message_to_chat_by_id_and_message_id(
             metadata["chat_id"],

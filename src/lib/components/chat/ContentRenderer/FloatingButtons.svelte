@@ -15,6 +15,11 @@
 	import Markdown from '../Messages/Markdown.svelte';
 	import Skeleton from '../Messages/Skeleton.svelte';
 
+	import { v4 as uuidv4 } from 'uuid';
+
+	import { models } from '$lib/stores/models';
+	import { get } from 'svelte/store';
+
 	export let id = '';
 	export let model = null;
 	export let messages = [];
@@ -51,7 +56,10 @@
 		floatingInputValue = '';
 
 		responseContent = '';
-		const [res, controller] = await chatCompletion(localStorage.token, {
+		const modelInfo = get(models).find((m) => m.id === model);
+		const chatId = localStorage.chatId || uuidv4();
+		const sessionId = localStorage.sessionId || uuidv4();
+		const payload = {
 			model: model,
 			messages: [
 				...messages,
@@ -63,8 +71,20 @@
 				role: message.role,
 				content: message.content
 			})),
-			stream: true // Enable streaming
-		});
+			stream: true,
+			chat_id: chatId,
+			id: uuidv4(),
+			session_id: sessionId,
+			features: {
+				image_generation: false,
+				code_interpreter: false,
+				web_search: false
+			},
+			variables: {},
+			model_item: modelInfo
+		};
+		console.log('ChatCompletion Payload:', payload);
+		const [res, controller] = await chatCompletion(localStorage.token, payload);
 
 		if (res && res.ok) {
 			const reader = res.body.getReader();
@@ -128,7 +148,10 @@
 		prompt = `${explainText}\n\n\`\`\`\n${selectedText}\n\`\`\``;
 
 		responseContent = '';
-		const [res, controller] = await chatCompletion(localStorage.token, {
+		const modelInfo = get(models).find((m) => m.id === model);
+		const chatId = localStorage.chatId || uuidv4();
+		const sessionId = localStorage.sessionId || uuidv4();
+		const payload = {
 			model: model,
 			messages: [
 				...messages,
@@ -140,8 +163,20 @@
 				role: message.role,
 				content: message.content
 			})),
-			stream: true // Enable streaming
-		});
+			stream: true,
+			chat_id: chatId,
+			id: uuidv4(),
+			session_id: sessionId,
+			features: {
+				image_generation: false,
+				code_interpreter: false,
+				web_search: false
+			},
+			variables: {},
+			model_item: modelInfo
+		};
+		console.log('ChatCompletion Payload:', payload);
+		const [res, controller] = await chatCompletion(localStorage.token, payload);
 
 		if (res && res.ok) {
 			const reader = res.body.getReader();
@@ -205,7 +240,10 @@
 		prompt = `${rewriteText}\n\n\`\`\`\n${selectedText}\n\`\`\``;
 
 		responseContent = '';
-		const [res, controller] = await chatCompletion(localStorage.token, {
+		const modelInfo = get(models).find((m) => m.id === model);
+		const chatId = localStorage.chatId || uuidv4();
+		const sessionId = localStorage.sessionId || uuidv4();
+		const payload = {
 			model: model,
 			messages: [
 				...messages,
@@ -217,8 +255,20 @@
 				role: message.role,
 				content: message.content
 			})),
-			stream: true // Enable streaming
-		});
+			stream: true,
+			chat_id: chatId,
+			id: uuidv4(),
+			session_id: sessionId,
+			features: {
+				image_generation: false,
+				code_interpreter: false,
+				web_search: false
+			},
+			variables: {},
+			model_item: modelInfo
+		};
+		console.log('ChatCompletion Payload:', payload);
+		const [res, controller] = await chatCompletion(localStorage.token, payload);
 
 		if (res && res.ok) {
 			const reader = res.body.getReader();

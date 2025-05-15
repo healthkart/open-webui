@@ -17,7 +17,7 @@
 
 	import { v4 as uuidv4 } from 'uuid';
 
-	import { models } from '$lib/stores/models';
+	// import { models } from '$lib/stores/models';
 	import { get } from 'svelte/store';
 
 	export let id = '';
@@ -56,7 +56,7 @@
 		floatingInputValue = '';
 
 		responseContent = '';
-		const modelInfo = get(models).find((m) => m.id === model);
+		// const modelInfo = get(models).find((m) => m.id === model);
 		const chatId = localStorage.chatId || uuidv4();
 		const sessionId = localStorage.sessionId || uuidv4();
 		const payload = {
@@ -81,7 +81,7 @@
 				web_search: false
 			},
 			variables: {},
-			model_item: modelInfo
+			// model_item: modelInfo
 		};
 		console.log('ChatCompletion Payload:', payload);
 		const [res, controller] = await chatCompletion(localStorage.token, payload);
@@ -148,7 +148,7 @@
 		prompt = `${explainText}\n\n\`\`\`\n${selectedText}\n\`\`\``;
 
 		responseContent = '';
-		const modelInfo = get(models).find((m) => m.id === model);
+		// const modelInfo = get(models).find((m) => m.id === model);
 		const chatId = localStorage.chatId || uuidv4();
 		const sessionId = localStorage.sessionId || uuidv4();
 		const payload = {
@@ -173,7 +173,7 @@
 				web_search: false
 			},
 			variables: {},
-			model_item: modelInfo
+			// model_item: modelInfo
 		};
 		console.log('ChatCompletion Payload:', payload);
 		const [res, controller] = await chatCompletion(localStorage.token, payload);
@@ -240,7 +240,7 @@
 		prompt = `${rewriteText}\n\n\`\`\`\n${selectedText}\n\`\`\``;
 
 		responseContent = '';
-		const modelInfo = get(models).find((m) => m.id === model);
+		// const modelInfo = get(models).find((m) => m.id === model);
 		const chatId = localStorage.chatId || uuidv4();
 		const sessionId = localStorage.sessionId || uuidv4();
 		const payload = {
@@ -265,7 +265,7 @@
 				web_search: false
 			},
 			variables: {},
-			model_item: modelInfo
+			// model_item: modelInfo
 		};
 		console.log('ChatCompletion Payload:', payload);
 		const [res, controller] = await chatCompletion(localStorage.token, payload);

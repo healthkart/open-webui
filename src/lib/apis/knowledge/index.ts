@@ -1,10 +1,11 @@
 import { WEBUI_API_BASE_URL } from '$lib/constants';
 
 export const createNewKnowledge = async (
-	token: string,
-	name: string,
-	description: string,
-	accessControl: null | object
+    token: string,
+    name: string,
+    description: string,
+    accessControl: null | object,
+    embed: boolean
 ) => {
 	let error = null;
 
@@ -18,7 +19,8 @@ export const createNewKnowledge = async (
 		body: JSON.stringify({
 			name: name,
 			description: description,
-			access_control: accessControl
+			embed: embed,
+            access_control: accessControl
 		})
 	})
 		.then(async (res) => {
@@ -136,6 +138,7 @@ type KnowledgeUpdateForm = {
 	name?: string;
 	description?: string;
 	data?: object;
+    embed?: boolean,
 	access_control?: null | object;
 };
 
@@ -153,6 +156,7 @@ export const updateKnowledgeById = async (token: string, id: string, form: Knowl
 			name: form?.name ? form.name : undefined,
 			description: form?.description ? form.description : undefined,
 			data: form?.data ? form.data : undefined,
+            embed: form?.embed,
 			access_control: form.access_control
 		})
 	})

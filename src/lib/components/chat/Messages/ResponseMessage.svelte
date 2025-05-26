@@ -776,6 +776,7 @@
 										floatingButtons={message?.done && !readOnly}
 										save={!readOnly}
 										{model}
+										editMessage={editMessage}
 										onTaskClick={async (e) => {
 											console.log(e);
 										}}
@@ -829,6 +830,11 @@
 											} else if (type === 'ask') {
 												const input = e.detail?.input ?? '';
 												submitMessage(message.id, `\`\`\`\n${content}\n\`\`\`\n${input}`);
+											} else if (type === 'rewrite') {
+												submitMessage(
+													message.id,
+													`Rewrite these lines, replace with original lines and generate the updated full HTML.\n\n\`\`\`\n${content}\n\`\`\``
+												);
 											}
 										}}
 									/>

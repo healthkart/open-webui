@@ -22,6 +22,8 @@
 
 	export let onAddMessages = () => {};
 
+	export let editMessage;
+
 	let contentContainerElement;
 
 	let floatingButtonsElement;
@@ -183,5 +185,6 @@
 			onAddMessages({ modelId, parentId, messages });
 			closeFloatingButtons();
 		}}
+		editMessage={editMessage} 
 	/>
 {/if}

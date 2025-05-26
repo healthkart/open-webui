@@ -12,8 +12,7 @@ from open_webui.models.users import Users, UserResponse
 
 
 from pydantic import BaseModel, ConfigDict
-from sqlalchemy import BigInteger, Column, String, Text, JSON
-
+from sqlalchemy import BigInteger, Column, String, Text, JSON, Boolean
 from open_webui.utils.access_control import has_access
 
 log = logging.getLogger(__name__)
@@ -55,6 +54,7 @@ class Knowledge(Base):
 
     created_at = Column(BigInteger)
     updated_at = Column(BigInteger)
+    embed = Column(Boolean, default=True)
 
 
 class KnowledgeModel(BaseModel):
@@ -73,6 +73,7 @@ class KnowledgeModel(BaseModel):
 
     created_at: int  # timestamp in epoch
     updated_at: int  # timestamp in epoch
+    embed: bool
 
 
 ####################
@@ -97,6 +98,7 @@ class KnowledgeForm(BaseModel):
     description: str
     data: Optional[dict] = None
     access_control: Optional[dict] = None
+    embed: bool
 
 
 class KnowledgeTable:

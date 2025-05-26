@@ -6,12 +6,14 @@
 	import { createNewKnowledge, getKnowledgeBases } from '$lib/apis/knowledge';
 	import { toast } from 'svelte-sonner';
 	import { knowledge, user } from '$lib/stores';
+	import Switch from "$lib/components/common/Switch.svelte";
 	import AccessControl from '../common/AccessControl.svelte';
 
 	let loading = false;
 
 	let name = '';
 	let description = '';
+	let embed = false;
 	let accessControl = null;
 
 	const submitHandler = async () => {
@@ -26,11 +28,12 @@
 		}
 
 		const res = await createNewKnowledge(
-			localStorage.token,
-			name,
-			description,
-			accessControl
-		).catch((e) => {
+            localStorage.token,
+            name,
+            description,
+            accessControl,
+            embed
+        ).catch((e) => {
 			toast.error(`${e}`);
 		});
 
@@ -107,6 +110,14 @@
 						/>
 					</div>
 				</div>
+                <div>
+                    <div class="text-sm mb-2">Embed</div>
+                    <div class=" self-center mx-1">
+                        <Switch
+                                bind:state={embed}
+                        />
+                    </div>
+                </div>
 			</div>
 		</div>
 

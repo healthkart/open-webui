@@ -200,6 +200,20 @@ async def generate_function_chat_completion(
     model_id = form_data.get("model")
     model_info = Models.get_model_by_id(model_id)
 
+    # Try to get custom_model_id from model_item or metadata.model
+    custom_model_id = None
+    if 'model_item' in form_data and isinstance(form_data['model_item'], dict):
+        custom_model_id = form_data['model_item'].get('id')
+    elif 'metadata' in form_data and isinstance(form_data['metadata'], dict):
+        model_meta = form_data['metadata'].get('model')
+        if isinstance(model_meta, dict):
+            custom_model_id = model_meta.get('id')
+    if custom_model_id:
+        form_data['custom_model_id'] = custom_model_id
+
+    print("DEBUG: model_item in form_data:", form_data.get('model_item'))
+    print("DEBUG: form_data before calling custom function:", form_data)
+
     metadata = form_data.pop("metadata", {})
 
     files = metadata.get("files", [])
@@ -262,6 +276,7 @@ async def generate_function_chat_completion(
     function_module = get_function_module_by_id(request, pipe_id)
 
     pipe = function_module.pipe
+    print("DEBUG: form_data before calling custom function:", form_data)
     params = get_function_params(function_module, form_data, user, extra_params)
 
     if form_data.get("stream", False):

@@ -18,9 +18,18 @@
 
 	let contents: Array<{ type: string; content: string }> = [];
 	let selectedContentIdx = 0;
+	let isContentReady = false;
 
 	let copied = false;
 	let iframeElement: HTMLIFrameElement;
+
+	function iframeLoadHandler() {
+		// Only show content after iframe is fully loaded
+		if (iframeElement) {
+			isContentReady = true;
+			iframeElement.style.visibility = 'visible';
+		}
+	}
 
 	$: if (history) {
 		messages = createMessagesList(history, history.currentId);
@@ -139,37 +148,6 @@
 		console.log(selectedContentIdx);
 	}
 
-	const iframeLoadHandler = () => {
-		iframeElement.contentWindow.addEventListener(
-			'click',
-			function (e) {
-				const target = e.target.closest('a');
-				if (target && target.href) {
-					e.preventDefault();
-					const url = new URL(target.href, iframeElement.baseURI);
-					if (url.origin === window.location.origin) {
-						iframeElement.contentWindow.history.pushState(
-							null,
-							'',
-							url.pathname + url.search + url.hash
-						);
-					} else {
-						console.log('External navigation blocked:', url.href);
-					}
-				}
-			},
-			true
-		);
-
-		// Cancel drag when hovering over iframe
-		iframeElement.contentWindow.addEventListener('mouseenter', function (e) {
-			e.preventDefault();
-			iframeElement.contentWindow.addEventListener('dragstart', (event) => {
-				event.preventDefault();
-			});
-		});
-	};
-
 	const showFullScreen = () => {
 		if (iframeElement.requestFullscreen) {
 			iframeElement.requestFullscreen();
@@ -223,6 +201,7 @@
 								title="Content"
 								srcdoc={contents[selectedContentIdx].content}
 								class="w-full border-0 h-full rounded-none"
+								style="visibility: {isContentReady ? 'visible' : 'hidden'}"
 								sandbox="allow-scripts allow-forms allow-same-origin"
 								on:load={iframeLoadHandler}
 							></iframe>

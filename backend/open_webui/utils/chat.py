@@ -173,6 +173,7 @@ async def generate_chat_completion(
                 **form_data["metadata"],
                 **request.state.metadata,
             }
+        form_data["metadata"]["variables"]["{{CURRENT_USER}}"] = user.email
 
     if getattr(request.state, "direct", False) and hasattr(request.state, "model"):
         models = {

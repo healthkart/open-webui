@@ -21,7 +21,7 @@ ARG UID=0
 ARG GID=0
 
 ######## WebUI frontend ########
-FROM --platform=$BUILDPLATFORM node:22-alpine3.20 AS build
+FROM --platform=$BUILDPLATFORM node:22.11-alpine3.20 AS build
 ARG BUILD_HASH
 
 WORKDIR /app
@@ -31,6 +31,8 @@ RUN npm ci
 
 COPY . .
 ENV APP_BUILD_HASH=${BUILD_HASH}
+ENV GENERATE_SOURCEMAP=false
+ENV NODE_OPTIONS=--max-old-space-size=3072
 RUN npm run build
 
 ######## WebUI backend ########
@@ -104,6 +106,13 @@ RUN echo -n 00000000-0000-0000-0000-000000000000 > $HOME/.cache/chroma/telemetry
 
 # Make sure the user has access to the app and root directory
 RUN chown -R $UID:$GID /app $HOME
+
+RUN apt-get update && \
+    # install poppler
+    apt-get install -y --no-install-recommends  libpoppler-dev && \
+    apt-get install -y --no-install-recommends poppler-utils && \
+    # cleanup
+    rm -rf /var/lib/apt/lists/*
 
 RUN if [ "$USE_OLLAMA" = "true" ]; then \
     apt-get update && \

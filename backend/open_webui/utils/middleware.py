@@ -1,65 +1,59 @@
-import time
-import logging
-import sys
-import os
-import base64
-
-import asyncio
-from aiocache import cached
-from typing import Any, Optional
-import random
-import json
-import html
-import inspect
-import re
 import ast
-
-from uuid import uuid4
+import asyncio
+import base64
+import html
+import json
+import logging
+import os
+import re
+import sys
+import time
 from concurrent.futures import ThreadPoolExecutor
-
+from typing import Optional
+from uuid import uuid4
 
 from fastapi import Request, HTTPException
 from starlette.responses import Response, StreamingResponse
 
-
-from open_webui.models.chats import Chats
-from open_webui.models.users import Users
-from open_webui.socket.main import (
-    get_event_call,
-    get_event_emitter,
-    get_active_status_by_user_id,
+from open_webui.config import (
+    CACHE_DIR,
+    DEFAULT_TOOLS_FUNCTION_CALLING_PROMPT_TEMPLATE,
+    DEFAULT_CODE_INTERPRETER_PROMPT,
 )
+from open_webui.constants import TASKS
+from open_webui.env import (
+    SRC_LOG_LEVELS,
+    GLOBAL_LOG_LEVEL,
+    ENABLE_REALTIME_CHAT_SAVE,
+)
+from open_webui.models.chats import Chats
+from open_webui.models.users import UserModel
+from open_webui.models.users import Users
+from open_webui.retrieval.utils import get_sources_from_files
+from open_webui.routers.images import image_generations, GenerateImageForm
+from open_webui.routers.pipelines import (
+    process_pipeline_inlet_filter,
+)
+from open_webui.routers.retrieval import process_web_search, SearchForm
 from open_webui.routers.tasks import (
     generate_queries,
     generate_title,
     generate_image_prompt,
     generate_chat_tags,
 )
-from open_webui.routers.retrieval import process_web_search, SearchForm
-from open_webui.routers.images import image_generations, GenerateImageForm
-from open_webui.routers.pipelines import (
-    process_pipeline_inlet_filter,
-    process_pipeline_outlet_filter,
+from open_webui.socket.main import (
+    get_event_call,
+    get_event_emitter,
+    get_active_status_by_user_id,
 )
-
-from open_webui.utils.webhook import post_webhook
-
-
-from open_webui.models.users import UserModel
-from open_webui.models.functions import Functions
-from open_webui.models.models import Models
-
-from open_webui.retrieval.utils import get_sources_from_files
-
-
+from open_webui.tasks import create_task
 from open_webui.utils.chat import generate_chat_completion
-from open_webui.utils.task import (
-    get_task_model_id,
-    rag_template,
-    tools_function_calling_generation_template,
+from open_webui.utils.code_interpreter import execute_code_jupyter
+from open_webui.utils.filter import (
+    get_sorted_filter_ids,
+    process_filter_functions,
 )
 from open_webui.utils.misc import (
-    deep_update,
     get_message_list,
     add_or_update_system_message,
     add_or_update_user_message,
@@ -68,29 +62,13 @@ from open_webui.utils.misc import (
     prepend_to_first_user_message_content,
     convert_logit_bias_input_to_json,
 )
+from open_webui.utils.task import (
+    get_task_model_id,
+    rag_template,
+    tools_function_calling_generation_template,
+)
 from open_webui.utils.tools import get_tools
-from open_webui.utils.plugin import load_function_module_by_id
-from open_webui.utils.filter import (
-    get_sorted_filter_ids,
-    process_filter_functions,
-)
-from open_webui.utils.code_interpreter import execute_code_jupyter
-
-from open_webui.tasks import create_task
-
-from open_webui.config import (
-    CACHE_DIR,
-    DEFAULT_TOOLS_FUNCTION_CALLING_PROMPT_TEMPLATE,
-    DEFAULT_CODE_INTERPRETER_PROMPT,
-)
-from open_webui.env import (
-    SRC_LOG_LEVELS,
-    GLOBAL_LOG_LEVEL,
-    BYPASS_MODEL_ACCESS_CONTROL,
-    ENABLE_REALTIME_CHAT_SAVE,
-)
-from open_webui.constants import TASKS
-
+from open_webui.utils.webhook import post_webhook
 
 logging.basicConfig(stream=sys.stdout, level=GLOBAL_LOG_LEVEL)
 log = logging.getLogger(__name__)
@@ -114,14 +92,17 @@ async def chat_completion_tools_handler(
             content = response["choices"][0]["message"]["content"]
         return content
 
-    def get_tools_function_calling_payload(messages, task_model_id, content):
+    def get_tools_function_calling_payload(messages, task_model_id, content, include_history: bool = False):
         user_message = get_last_user_message(messages)
-        history = "\n".join(
-            f"{message['role'].upper()}: \"\"\"{message['content']}\"\"\""
-            for message in messages[::-1][:4]
-        )
+        if include_history:
+            history = "\n".join(
+                f"{message['role'].upper()}: \"\"\"{message['content']}\"\"\""
+                for message in messages[::-1][:3]
+            )
 
-        prompt = f"History:\n{history}\nQuery: {user_message}"
+            prompt = f"History:\n{history}\nQuery: {user_message}"
+        else:
+            prompt = user_message
 
         return {
             "model": task_model_id,
@@ -147,6 +128,7 @@ async def chat_completion_tools_handler(
     sources = []
 
     specs = [tool["spec"] for tool in tools.values()]
+    include_history = any([tool["mcp"] for tool in tools.values()])
     tools_specs = json.dumps(specs)
 
     if request.app.state.config.TOOLS_FUNCTION_CALLING_PROMPT_TEMPLATE != "":
@@ -158,9 +140,9 @@ async def chat_completion_tools_handler(
         template, tools_specs
     )
     payload = get_tools_function_calling_payload(
-        body["messages"], task_model_id, tools_function_calling_prompt
+        body["messages"], task_model_id, tools_function_calling_prompt, include_history
     )
-
+    skip_rag = False
     try:
         response = await generate_chat_completion(request, form_data=payload, user=user)
         log.debug(f"{response=}")
@@ -178,7 +160,7 @@ async def chat_completion_tools_handler(
             result = json.loads(content)
 
             async def tool_call_handler(tool_call):
-                nonlocal skip_files
+                nonlocal skip_files, skip_rag
 
                 log.debug(f"{tool_call=}")
 
@@ -202,7 +184,7 @@ async def chat_completion_tools_handler(
                     }
 
                     if tool.get("direct", False):
-                        tool_result = await event_caller(
+                        tool_result = str(await event_caller(
                             {
                                 "type": "execute:tool",
                                 "data": {
@@ -213,10 +195,16 @@ async def chat_completion_tools_handler(
                                     "session_id": metadata.get("session_id", None),
                                 },
                             }
-                        )
+                        ))
+                        skip_rag = True
                     else:
                         tool_function = tool["callable"]
                         tool_result = await tool_function(**tool_function_params)
+                        if isinstance(tool_result, tuple):
+                            tool_result, skip_rag = tool_result
+                        else:
+                            tool_result = str(tool_result)
+                            skip_rag = True
 
                 except Exception as e:
                     tool_result = str(e)
@@ -255,7 +243,8 @@ async def chat_completion_tools_handler(
                                             f"TOOL:" + f"{tool_id}/{tool_function_name}"
                                             if tool_id
                                             else f"{tool_function_name}"
-                                        )
+                                        ),
+                                        "skip_rag": True
                                     }
                                 ],
                             }
@@ -271,7 +260,8 @@ async def chat_completion_tools_handler(
                                             f"TOOL:" + f"{tool_id}/{tool_function_name}"
                                             if tool_id
                                             else f"{tool_function_name}"
-                                        )
+                                        ),
+                                        "skip_rag": True
                                     }
                                 ],
                             }
@@ -300,7 +290,7 @@ async def chat_completion_tools_handler(
 
     log.debug(f"tool_contexts: {sources}")
 
-    if skip_files and "files" in body.get("metadata", {}):
+    if (skip_files or skip_rag)  and "files" in body.get("metadata", {}):
         del body["metadata"]["files"]
 
     return body, {"sources": sources}
@@ -721,6 +711,12 @@ async def process_chat_payload(request, form_data, user, metadata, model):
         }
     else:
         models = request.app.state.MODELS
+    task_model_id = get_task_model_id(
+        form_data["model"],
+        request.app.state.config.TASK_MODEL,
+        request.app.state.config.TASK_MODEL_EXTERNAL,
+        models,
+    )
 
     task_model_id = get_task_model_id(
         form_data["model"],
@@ -749,25 +745,26 @@ async def process_chat_payload(request, form_data, user, metadata, model):
 
         knowledge_files = []
         for item in model_knowledge:
-            if item.get("collection_name"):
-                knowledge_files.append(
-                    {
-                        "id": item.get("collection_name"),
-                        "name": item.get("name"),
-                        "legacy": True,
-                    }
-                )
-            elif item.get("collection_names"):
-                knowledge_files.append(
-                    {
-                        "name": item.get("name"),
-                        "type": "collection",
-                        "collection_names": item.get("collection_names"),
-                        "legacy": True,
-                    }
-                )
-            else:
-                knowledge_files.append(item)
+            if item.get("embed"):
+                if item.get("collection_name"):
+                    knowledge_files.append(
+                        {
+                            "id": item.get("collection_name"),
+                            "name": item.get("name"),
+                            "legacy": True,
+                        }
+                    )
+                elif item.get("collection_names"):
+                    knowledge_files.append(
+                        {
+                            "name": item.get("name"),
+                            "type": "collection",
+                            "collection_names": item.get("collection_names"),
+                            "legacy": True,
+                        }
+                    )
+                else:
+                    knowledge_files.append(item)
 
         files = form_data.get("files", [])
         files.extend(knowledge_files)
@@ -889,8 +886,9 @@ async def process_chat_payload(request, form_data, user, metadata, model):
                 log.exception(e)
 
     try:
-        form_data, flags = await chat_completion_files_handler(request, form_data, user)
-        sources.extend(flags.get("sources", []))
+        if model_knowledge and all(x['embed'] for x in model_knowledge):
+            form_data, flags = await chat_completion_files_handler(request, form_data, user)
+            sources.extend(flags.get("sources", []))
     except Exception as e:
         log.exception(e)
 

@@ -29,7 +29,7 @@ export const createNewKnowledge = async (
 		})
 		.catch((err) => {
 			error = err.detail;
-			console.log(err);
+			console.error(err);
 			return null;
 		});
 
@@ -60,7 +60,7 @@ export const getKnowledgeBases = async (token: string = '') => {
 		})
 		.catch((err) => {
 			error = err.detail;
-			console.log(err);
+			console.error(err);
 			return null;
 		});
 
@@ -91,7 +91,7 @@ export const getKnowledgeBaseList = async (token: string = '') => {
 		})
 		.catch((err) => {
 			error = err.detail;
-			console.log(err);
+			console.error(err);
 			return null;
 		});
 
@@ -123,7 +123,7 @@ export const getKnowledgeById = async (token: string, id: string) => {
 		.catch((err) => {
 			error = err.detail;
 
-			console.log(err);
+			console.error(err);
 			return null;
 		});
 
@@ -170,7 +170,7 @@ export const updateKnowledgeById = async (token: string, id: string, form: Knowl
 		.catch((err) => {
 			error = err.detail;
 
-			console.log(err);
+			console.error(err);
 			return null;
 		});
 
@@ -205,7 +205,7 @@ export const addFileToKnowledgeById = async (token: string, id: string, fileId: 
 		.catch((err) => {
 			error = err.detail;
 
-			console.log(err);
+			console.error(err);
 			return null;
 		});
 
@@ -240,7 +240,7 @@ export const updateFileFromKnowledgeById = async (token: string, id: string, fil
 		.catch((err) => {
 			error = err.detail;
 
-			console.log(err);
+			console.error(err);
 			return null;
 		});
 
@@ -275,7 +275,7 @@ export const removeFileFromKnowledgeById = async (token: string, id: string, fil
 		.catch((err) => {
 			error = err.detail;
 
-			console.log(err);
+			console.error(err);
 			return null;
 		});
 
@@ -307,7 +307,7 @@ export const resetKnowledgeById = async (token: string, id: string) => {
 		.catch((err) => {
 			error = err.detail;
 
-			console.log(err);
+			console.error(err);
 			return null;
 		});
 
@@ -339,7 +339,35 @@ export const deleteKnowledgeById = async (token: string, id: string) => {
 		.catch((err) => {
 			error = err.detail;
 
-			console.log(err);
+			console.error(err);
+			return null;
+		});
+
+	if (error) {
+		throw error;
+	}
+
+	return res;
+};
+
+export const reindexKnowledgeFiles = async (token: string) => {
+	let error = null;
+
+	const res = await fetch(`${WEBUI_API_BASE_URL}/knowledge/reindex`, {
+		method: 'POST',
+		headers: {
+			Accept: 'application/json',
+			'Content-Type': 'application/json',
+			authorization: `Bearer ${token}`
+		}
+	})
+		.then(async (res) => {
+			if (!res.ok) throw await res.json();
+			return res.json();
+		})
+		.catch((err) => {
+			error = err.detail;
+			console.error(err);
 			return null;
 		});
 

@@ -9,9 +9,21 @@
 
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
-	import { mobile, showSidebar, knowledge as _knowledge, config, user } from '$lib/stores';
+	import {
+		mobile,
+		showSidebar,
+		knowledge as _knowledge,
+		config,
+		user,
+		settings
+	} from '$lib/stores';
 
-	import { updateFileDataContentById, uploadFile, deleteFileById } from '$lib/apis/files';
+	import {
+		updateFileDataContentById,
+		uploadFile,
+		deleteFileById,
+		getFileById
+	} from '$lib/apis/files';
 	import {
 		addFileToKnowledgeById,
 		getKnowledgeById,
@@ -21,10 +33,7 @@
 		updateFileFromKnowledgeById,
 		updateKnowledgeById
 	} from '$lib/apis/knowledge';
-
-	import { transcribeAudio } from '$lib/apis/audio';
 	import { blobToFile } from '$lib/utils';
-	import { processFile } from '$lib/apis/retrieval';
 
 	import Spinner from '$lib/components/common/Spinner.svelte';
 	import Files from './KnowledgeBase/Files.svelte';
@@ -40,6 +49,8 @@
 	import ChevronLeft from '$lib/components/icons/ChevronLeft.svelte';
 	import LockClosed from '$lib/components/icons/LockClosed.svelte';
 	import AccessControlModal from '../common/AccessControlModal.svelte';
+	import Search from '$lib/components/icons/Search.svelte';
+	import Textarea from '$lib/components/common/Textarea.svelte';
 
 	let largeScreen = true;
 
@@ -85,12 +96,15 @@
 
 	let selectedFile = null;
 	let selectedFileId = null;
+	let selectedFileContent = '';
+
+	// Add cache object
+	let fileContentCache = new Map();
 
 	$: if (selectedFileId) {
 		const file = (knowledge?.files ?? []).find((file) => file.id === selectedFileId);
 		if (file) {
-			file.data = file.data ?? { content: '' };
-			selectedFile = file;
+			fileSelectHandler(file);
 		} else {
 			selectedFile = null;
 		}
@@ -151,13 +165,30 @@
 		knowledge.files = [...(knowledge.files ?? []), fileItem];
 
 		try {
-			const uploadedFile = await uploadFile(localStorage.token, file, knowledge.embed).catch((e) => {
+			// If the file is an audio file, provide the language for STT.
+			let metadata = null;
+			if (
+				(file.type.startsWith('audio/') || file.type.startsWith('video/')) &&
+				$settings?.audio?.stt?.language
+			) {
+				metadata = {
+					language: $settings?.audio?.stt?.language
+				};
+			}
+
+			const uploadedFile = await uploadFile(localStorage.token, file, metadata, knowledge.embed).catch((e) => {
 				toast.error(`${e}`);
 				return null;
 			});
 
 			if (uploadedFile) {
 				console.log(uploadedFile);
+
+				if (uploadedFile.error) {
+					console.warn('File upload warning:', uploadedFile.error);
+					toast.warning(uploadedFile.error);
+				}
+
 				knowledge.files = knowledge.files.map((item) => {
 					if (item.itemId === tempItemId) {
 						item.id = uploadedFile.id;
@@ -207,7 +238,13 @@
 		// Function to update the UI with the progress
 		const updateProgress = () => {
 			const percentage = (uploadedFiles / totalFiles) * 100;
-			toast.info(`Upload Progress: ${uploadedFiles}/${totalFiles} (${percentage.toFixed(2)}%)`);
+			toast.info(
+				$i18n.t('Upload Progress: {{uploadedFiles}}/{{totalFiles}} ({{percentage}}%)', {
+					uploadedFiles: uploadedFiles,
+					totalFiles: totalFiles,
+					percentage: percentage.toFixed(2)
+				})
+			);
 		};
 
 		// Recursive function to count all files excluding hidden ones
@@ -291,7 +328,11 @@
 					const updateProgress = () => {
 						const percentage = (uploadedFiles / totalFiles) * 100;
 						toast.info(
-							`Upload Progress: ${uploadedFiles}/${totalFiles} (${percentage.toFixed(2)}%)`
+							$i18n.t('Upload Progress: {{uploadedFiles}}/{{totalFiles}} ({{percentage}}%)', {
+								uploadedFiles: uploadedFiles,
+								totalFiles: totalFiles,
+								percentage: percentage.toFixed(2)
+							})
 						);
 					};
 
@@ -331,9 +372,9 @@
 	// Error handler
 	const handleUploadError = (error) => {
 		if (error.name === 'AbortError') {
-			toast.info('Directory selection was cancelled');
+			toast.info($i18n.t('Directory selection was cancelled'));
 		} else {
-			toast.error('Error accessing directory');
+			toast.error($i18n.t('Error accessing directory'));
 			console.error('Directory access error:', error);
 		}
 	};
@@ -395,7 +436,10 @@
 
 	const updateFileContentHandler = async () => {
 		const fileId = selectedFile.id;
-		const content = selectedFile.data.content;
+		const content = selectedFileContent;
+
+		// Clear the cache for this file since we're updating it
+		fileContentCache.delete(fileId);
 
 		const res = updateFileDataContentById(localStorage.token, fileId, content).catch((e) => {
 			toast.error(`${e}`);
@@ -448,6 +492,29 @@
 			largeScreen = true;
 		} else {
 			largeScreen = false;
+		}
+	};
+
+	const fileSelectHandler = async (file) => {
+		try {
+			selectedFile = file;
+
+			// Check cache first
+			if (fileContentCache.has(file.id)) {
+				selectedFileContent = fileContentCache.get(file.id);
+				return;
+			}
+
+			const response = await getFileById(localStorage.token, file.id);
+			if (response) {
+				selectedFileContent = response.data.content;
+				// Cache the content
+				fileContentCache.set(file.id, response.data.content);
+			} else {
+				toast.error($i18n.t('No content found in file.'));
+			}
+		} catch (e) {
+			toast.error($i18n.t('Failed to load file content.'));
 		}
 	};
 
@@ -548,6 +615,14 @@
 		dropZone?.removeEventListener('drop', onDrop);
 		dropZone?.removeEventListener('dragleave', onDragLeave);
 	});
+
+	const decodeString = (str: string) => {
+		try {
+			return decodeURIComponent(str);
+		} catch (e) {
+			return str;
+		}
+	};
 </script>
 
 {#if dragged}
@@ -615,7 +690,7 @@
 	}}
 />
 
-<div class="flex flex-col w-full translate-y-1" id="collection-container">
+<div class="flex flex-col w-full h-full translate-y-1" id="collection-container">
 	{#if id && knowledge}
 		<AccessControlModal
 			bind:show={showAccessControlModal}
@@ -635,7 +710,7 @@
 								type="text"
 								class="text-left w-full font-semibold text-2xl font-primary bg-transparent outline-hidden"
 								bind:value={knowledge.name}
-								placeholder="Knowledge Name"
+								placeholder={$i18n.t('Knowledge Name')}
 								on:input={() => {
 									changeDebounceHandler();
 								}}
@@ -664,7 +739,7 @@
 							type="text"
 							class="text-left text-xs w-full text-gray-500 bg-transparent outline-hidden"
 							bind:value={knowledge.description}
-							placeholder="Knowledge Description"
+							placeholder={$i18n.t('Knowledge Description')}
 							on:input={() => {
 								changeDebounceHandler();
 							}}
@@ -699,7 +774,7 @@
 										href={selectedFile.id ? `/api/v1/files/${selectedFile.id}/content` : '#'}
 										target="_blank"
 									>
-										{decodeURIComponent(selectedFile?.meta?.name)}
+										{decodeString(selectedFile?.meta?.name)}
 									</a>
 								</div>
 
@@ -720,8 +795,8 @@
 							>
 								{#key selectedFile.id}
 									<RichTextInput
-										className="input-prose-sm"
-										bind:value={selectedFile.data.content}
+										className="w-full h-full outline-none resize-none"
+										bind:value={selectedFileContent}
 										placeholder={$i18n.t('Add content here')}
 										preserveBreaks={true}
 									/>
@@ -740,7 +815,7 @@
 				<Drawer
 					className="h-full"
 					show={selectedFileId !== null}
-					on:close={() => {
+					onClose={() => {
 						selectedFileId = null;
 					}}
 				>
@@ -778,8 +853,8 @@
 							>
 								{#key selectedFile.id}
 									<RichTextInput
-										className="input-prose-sm"
-										bind:value={selectedFile.data.content}
+										className="iw-full h-full outline-none resize-none"
+										bind:value={selectedFileContent}
 										placeholder={$i18n.t('Add content here')}
 										preserveBreaks={true}
 									/>
@@ -805,18 +880,7 @@
 						<div class=" px-3">
 							<div class="flex mb-0.5">
 								<div class=" self-center ml-1 mr-3">
-									<svg
-										xmlns="http://www.w3.org/2000/svg"
-										viewBox="0 0 20 20"
-										fill="currentColor"
-										class="w-4 h-4"
-									>
-										<path
-											fill-rule="evenodd"
-											d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z"
-											clip-rule="evenodd"
-										/>
-									</svg>
+									<Search />
 								</div>
 								<input
 									class=" w-full text-sm pr-4 py-1 rounded-r-xl outline-hidden bg-transparent"
@@ -875,6 +939,6 @@
 			</div>
 		</div>
 	{:else}
-		<Spinner />
+		<Spinner className="size-5" />
 	{/if}
 </div>

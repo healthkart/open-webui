@@ -39,7 +39,7 @@ from open_webui.models.chats import Chats
 from open_webui.models.users import UserModel
 from open_webui.models.folders import Folders
 from open_webui.models.users import Users
-from open_webui.retrieval.utils import get_sources_from_files
+import asyncio
 from open_webui.routers.images import image_generations, GenerateImageForm
 from open_webui.routers.pipelines import (
     process_pipeline_inlet_filter,
@@ -56,6 +56,7 @@ from open_webui.socket.main import (
     get_event_call,
     get_event_emitter,
     get_active_status_by_user_id,
+)
 from open_webui.routers.retrieval import process_web_search, SearchForm
 from open_webui.routers.images import (
     load_b64_image_data,

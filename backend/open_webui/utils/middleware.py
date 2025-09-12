@@ -207,7 +207,7 @@ async def chat_completion_tools_handler(
                     }
 
                     if tool.get("direct", False):
-                        tool_result, skip_rag = await event_caller(
+                        tool_result = await event_caller(
                             {
                                 "type": "execute:tool",
                                 "data": {
@@ -221,7 +221,10 @@ async def chat_completion_tools_handler(
                         )
                     else:
                         tool_function = tool["callable"]
-                        tool_result, skip_rag = await tool_function(**tool_function_params)
+                        tool_result = await tool_function(**tool_function_params)
+
+                    if type(tool_result) == tuple and len(tool_result) == 2:
+                        tool_result, skip_rag = tool_result[0], tool_result[1]
 
                 except Exception as e:
                     tool_result = str(e)

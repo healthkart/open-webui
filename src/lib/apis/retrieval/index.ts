@@ -184,6 +184,11 @@ type OpenAIConfigForm = {
 	url: string;
 };
 
+type GeminiConfigForm = {
+	key: string;
+	url: string;
+};
+
 type AzureOpenAIConfigForm = {
 	key: string;
 	url: string;
@@ -193,6 +198,7 @@ type AzureOpenAIConfigForm = {
 type EmbeddingModelUpdateForm = {
 	openai_config?: OpenAIConfigForm;
 	azure_openai_config?: AzureOpenAIConfigForm;
+	gemini_config?: GeminiConfigForm;
 	embedding_engine: string;
 	embedding_model: string;
 	embedding_batch_size?: number;

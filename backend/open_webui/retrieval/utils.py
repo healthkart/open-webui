@@ -437,6 +437,36 @@ def get_embedding_function(
             if isinstance(query, list):
                 embeddings = []
                 for i in range(0, len(query), embedding_batch_size):
+                    batch = func(
+                        query[i : i + embedding_batch_size],
+                        prefix=prefix,
+                        user=user,
+                    )
+                    if batch is None:
+                        raise ValueError("Gemini embeddings request returned no data")
+                    embeddings.extend(batch)
+                return embeddings
+            else:
+                return func(query, prefix, user)
+
+        return lambda query, prefix=None, user=None: generate_multiple(
+            query, prefix, user, func
+        )
+    elif embedding_engine == "gemini":
+        func = lambda query, prefix=None, user=None: generate_embeddings(
+            engine="gemini",
+            model=embedding_model,
+            text=query,
+            prefix=prefix,
+            url=url,
+            key=key,
+            user=user,
+        )
+
+        def generate_multiple(query, prefix, user, func):
+            if isinstance(query, list):
+                embeddings = []
+                for i in range(0, len(query), embedding_batch_size):
                     embeddings.extend(
                         func(
                             query[i : i + embedding_batch_size],
@@ -837,6 +867,69 @@ def generate_azure_openai_batch_embeddings(
         return None
 
 
+def generate_gemini_batch_embeddings(
+    model: str,
+    texts: list[str],
+    url: str,
+    key: str = "",
+    prefix: str = None,
+    user: UserModel = None,
+) -> Optional[list[list[float]]]:
+    """
+    Generate embeddings using Gemini (Google AI Studio) batchEmbedContents.
+    """
+    try:
+        if not url or not key:
+            raise ValueError("Gemini base URL or API key is not configured")
+
+        log.debug(
+            f"generate_gemini_batch_embeddings:model {model} batch size: {len(texts)}"
+        )
+
+        # API expects full model id prefixed with models/
+        model_id = model if model.startswith("models/") else f"models/{model}"
+        base_url = url.rstrip("/")
+        requests_payload = [
+            {
+                "model": model_id,
+                "content": {
+                    "parts": [
+                        {
+                            "text": text,
+                        }
+                    ]
+                },
+            }
+            for text in texts
+        ]
+
+        r = requests.post(
+            f"{base_url}/{model_id}:batchEmbedContents?key={key}",
+            headers={
+                "Content-Type": "application/json",
+                **(
+                    {
+                        "X-OpenWebUI-User-Name": quote(user.name, safe=" "),
+                        "X-OpenWebUI-User-Id": user.id,
+                        "X-OpenWebUI-User-Email": user.email,
+                        "X-OpenWebUI-User-Role": user.role,
+                    }
+                    if ENABLE_FORWARD_USER_INFO_HEADERS and user
+                    else {}
+                ),
+            },
+            json={"requests": requests_payload},
+        )
+        r.raise_for_status()
+        data = r.json()
+        if "embeddings" in data:
+            return [embedding["values"] for embedding in data["embeddings"]]
+        raise Exception("Gemini embeddings response missing 'embeddings' field")
+    except Exception as e:
+        log.exception(f"Error generating gemini batch embeddings: {e}")
+        return None
+
+
 def generate_ollama_batch_embeddings(
     model: str,
     texts: list[str],
@@ -928,6 +1021,18 @@ def generate_embeddings(
             prefix,
             user,
         )
+        return embeddings[0] if isinstance(text, str) else embeddings
+    elif engine == "gemini":
+        embeddings = generate_gemini_batch_embeddings(
+            model,
+            text if isinstance(text, list) else [text],
+            url,
+            key,
+            prefix,
+            user,
+        )
+        if embeddings is None:
+            raise ValueError("Gemini embeddings request failed")
         return embeddings[0] if isinstance(text, str) else embeddings
 
 

@@ -223,6 +223,8 @@ from open_webui.config import (
     RAG_AZURE_OPENAI_BASE_URL,
     RAG_AZURE_OPENAI_API_KEY,
     RAG_AZURE_OPENAI_API_VERSION,
+    RAG_GEMINI_API_BASE_URL,
+    RAG_GEMINI_API_KEY,
     RAG_OLLAMA_BASE_URL,
     RAG_OLLAMA_API_KEY,
     CHUNK_OVERLAP,
@@ -844,6 +846,9 @@ app.state.config.RAG_AZURE_OPENAI_BASE_URL = RAG_AZURE_OPENAI_BASE_URL
 app.state.config.RAG_AZURE_OPENAI_API_KEY = RAG_AZURE_OPENAI_API_KEY
 app.state.config.RAG_AZURE_OPENAI_API_VERSION = RAG_AZURE_OPENAI_API_VERSION
 
+app.state.config.RAG_GEMINI_API_BASE_URL = RAG_GEMINI_API_BASE_URL
+app.state.config.RAG_GEMINI_API_KEY = RAG_GEMINI_API_KEY
+
 app.state.config.RAG_OLLAMA_BASE_URL = RAG_OLLAMA_BASE_URL
 app.state.config.RAG_OLLAMA_API_KEY = RAG_OLLAMA_API_KEY
 
@@ -952,7 +957,11 @@ app.state.EMBEDDING_FUNCTION = get_embedding_function(
         else (
             app.state.config.RAG_OLLAMA_BASE_URL
             if app.state.config.RAG_EMBEDDING_ENGINE == "ollama"
-            else app.state.config.RAG_AZURE_OPENAI_BASE_URL
+            else (
+                app.state.config.RAG_AZURE_OPENAI_BASE_URL
+                if app.state.config.RAG_EMBEDDING_ENGINE == "azure_openai"
+                else app.state.config.RAG_GEMINI_API_BASE_URL
+            )
         )
     ),
     key=(
@@ -961,7 +970,11 @@ app.state.EMBEDDING_FUNCTION = get_embedding_function(
         else (
             app.state.config.RAG_OLLAMA_API_KEY
             if app.state.config.RAG_EMBEDDING_ENGINE == "ollama"
-            else app.state.config.RAG_AZURE_OPENAI_API_KEY
+            else (
+                app.state.config.RAG_AZURE_OPENAI_API_KEY
+                if app.state.config.RAG_EMBEDDING_ENGINE == "azure_openai"
+                else app.state.config.RAG_GEMINI_API_KEY
+            )
         )
     ),
     embedding_batch_size=app.state.config.RAG_EMBEDDING_BATCH_SIZE,
@@ -1979,4 +1992,3 @@ else:
     log.warning(
         f"Frontend build directory not found at '{FRONTEND_BUILD_DIR}'. Serving API only."
     )
-

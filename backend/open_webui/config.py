@@ -2558,6 +2558,18 @@ RAG_AZURE_OPENAI_API_VERSION = PersistentConfig(
     os.getenv("RAG_AZURE_OPENAI_API_VERSION", ""),
 )
 
+# Gemini (Google AI Studio)
+RAG_GEMINI_API_BASE_URL = PersistentConfig(
+    "RAG_GEMINI_API_BASE_URL",
+    "rag.gemini.api_base_url",
+    os.getenv("RAG_GEMINI_API_BASE_URL", "https://generativelanguage.googleapis.com/v1beta"),
+)
+RAG_GEMINI_API_KEY = PersistentConfig(
+    "RAG_GEMINI_API_KEY",
+    "rag.gemini.api_key",
+    os.getenv("RAG_GEMINI_API_KEY", ""),
+)
+
 RAG_OLLAMA_BASE_URL = PersistentConfig(
     "RAG_OLLAMA_BASE_URL",
     "rag.ollama.url",

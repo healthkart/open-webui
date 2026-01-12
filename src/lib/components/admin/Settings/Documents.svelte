@@ -53,6 +53,9 @@
 	let OllamaUrl = '';
 	let OllamaKey = '';
 
+let GeminiUrl = '';
+let GeminiKey = '';
+
 	let querySettings = {
 		template: '',
 		r: 0.0,
@@ -98,6 +101,11 @@
 			return;
 		}
 
+	if (embeddingEngine === 'gemini' && (GeminiKey === '' || GeminiUrl === '')) {
+		toast.error($i18n.t('Gemini URL/Key required.'));
+		return;
+	}
+
 		console.debug('Update embedding model attempt:', embeddingModel);
 
 		updateEmbeddingModelLoading = true;
@@ -108,6 +116,10 @@
 			ollama_config: {
 				key: OllamaKey,
 				url: OllamaUrl
+			},
+			gemini_config: {
+				key: GeminiKey,
+				url: GeminiUrl
 			},
 			openai_config: {
 				key: OpenAIKey,
@@ -228,6 +240,9 @@
 
 			OllamaKey = embeddingConfig.ollama_config.key;
 			OllamaUrl = embeddingConfig.ollama_config.url;
+
+			GeminiKey = embeddingConfig.gemini_config?.key ?? '';
+			GeminiUrl = embeddingConfig.gemini_config?.url ?? '';
 
 			AzureOpenAIKey = embeddingConfig.azure_openai_config.key;
 			AzureOpenAIUrl = embeddingConfig.azure_openai_config.url;
@@ -754,6 +769,9 @@
 												embeddingModel = 'text-embedding-3-small';
 											} else if (e.target.value === 'azure_openai') {
 												embeddingModel = 'text-embedding-3-small';
+											} else if (e.target.value === 'gemini') {
+												embeddingModel = 'models/text-embedding-004';
+												GeminiUrl = GeminiUrl || 'https://generativelanguage.googleapis.com/v1beta';
 											} else if (e.target.value === '') {
 												embeddingModel = 'sentence-transformers/all-MiniLM-L6-v2';
 											}
@@ -763,6 +781,7 @@
 										<option value="ollama">{$i18n.t('Ollama')}</option>
 										<option value="openai">{$i18n.t('OpenAI')}</option>
 										<option value="azure_openai">{$i18n.t('Azure OpenAI')}</option>
+										<option value="gemini">{$i18n.t('Gemini')}</option>
 									</select>
 								</div>
 							</div>
@@ -779,6 +798,21 @@
 									<SensitiveInput
 										placeholder={$i18n.t('API Key')}
 										bind:value={OpenAIKey}
+										required={false}
+									/>
+								</div>
+							{:else if embeddingEngine === 'gemini'}
+								<div class="my-0.5 flex gap-2 pr-2">
+									<input
+										class="flex-1 w-full text-sm bg-transparent outline-hidden"
+										placeholder={$i18n.t('Enter Gemini API Base URL')}
+										bind:value={GeminiUrl}
+										required
+									/>
+
+									<SensitiveInput
+										placeholder={$i18n.t('Enter Gemini API Key')}
+										bind:value={GeminiKey}
 										required={false}
 									/>
 								</div>
@@ -887,7 +921,7 @@
 							</div>
 						</div>
 
-						{#if embeddingEngine === 'ollama' || embeddingEngine === 'openai' || embeddingEngine === 'azure_openai'}
+						{#if embeddingEngine === 'ollama' || embeddingEngine === 'openai' || embeddingEngine === 'azure_openai' || embeddingEngine === 'gemini'}
 							<div class="  mb-2.5 flex w-full justify-between">
 								<div class=" self-center text-xs font-medium">
 									{$i18n.t('Embedding Batch Size')}

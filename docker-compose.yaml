@@ -12,7 +12,10 @@ services:
       options:
         max-size: "50m"
     environment:
-      - OLLAMA_BASE_URL=http://134.65.165.93:1542
+      - OPENAI_API_BASE_URL=https://apillm.healthkart.com/v1
+      - OPENAI_API_KEY=ahsjhdjfj
+      - MODEL_NAME=hkllm
+      # - OFFLINE_MODE=true
       - ENABLE_ADMIN_CHAT_ACCESS=false
       - ENABLE_OAUTH_SIGNUP=true
       - GOOGLE_CLIENT_ID=1046941779389-o6uc9c8m1ub8a3o255tnq15mavu4a92o.apps.googleusercontent.com
@@ -32,11 +35,12 @@ services:
 #      - QDRANT_URI=http://localhost:6333
       - RAG_TOP_K=10
       - ENABLE_RAG_HYBRID_SEARCH=true
-      - RAG_EMBEDDING_ENGINE=ollama
-      - RAG_EMBEDDING_MODEL=mxbai-embed-large
+      - RAG_EMBEDDING_ENGINE=gemini
+      - RAG_EMBEDDING_MODEL=models/gemini-embedding-001
       - RAG_EMBEDDING_OPENAI_BATCH_SIZE=5
-      - CHUNK_SIZE=2000
-      - CHUNK_OVERLAP=100
+      - RAG_EMBEDDING_BATCH_SIZE=16
+      - CHUNK_SIZE=10000
+      - CHUNK_OVERLAP=200
       - TOKENIZERS_PARALLELISM=true
 
 volumes:

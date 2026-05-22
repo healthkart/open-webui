@@ -1,4 +1,7 @@
 <script lang="ts">
+	import fileSaver from 'file-saver';
+	const { saveAs } = fileSaver;
+
 	import { toast } from 'svelte-sonner';
 
 	import { goto } from '$app/navigation';
@@ -12,18 +15,26 @@
 	} from '$lib/constants';
 	import { WEBUI_NAME, config, user, models, settings } from '$lib/stores';
 
-	import { chatCompletion, generateOpenAIChatCompletion } from '$lib/apis/openai';
+	import { chatCompletion } from '$lib/apis/openai';
 
 	import { splitStream } from '$lib/utils';
 	import Collapsible from '../common/Collapsible.svelte';
+	import Dropdown from '../common/Dropdown.svelte';
+	import DropdownSub from '../common/DropdownSub.svelte';
 
 	import Messages from '$lib/components/playground/Chat/Messages.svelte';
+	import AdvancedParams from '$lib/components/chat/Settings/Advanced/AdvancedParams.svelte';
 	import ChevronUp from '../icons/ChevronUp.svelte';
 	import ChevronDown from '../icons/ChevronDown.svelte';
 	import Pencil from '../icons/Pencil.svelte';
 	import Cog6 from '../icons/Cog6.svelte';
+	import AdjustmentsHorizontal from '../icons/AdjustmentsHorizontal.svelte';
+	import Modal from '../common/Modal.svelte';
+	import XMark from '../icons/XMark.svelte';
 	import Sidebar from '../common/Sidebar.svelte';
 	import ArrowRight from '../icons/ArrowRight.svelte';
+	import Download from '../icons/Download.svelte';
+	import EllipsisHorizontal from '../icons/EllipsisHorizontal.svelte';
 
 	const i18n = getContext('i18n');
 
@@ -38,6 +49,9 @@
 
 	let showSystem = false;
 	let showSettings = false;
+	let showControls = false;
+
+	let params: Record<string, any> = {};
 
 	let system = '';
 
@@ -83,6 +97,11 @@
 			return;
 		}
 
+		// Build params object, filtering out null/undefined values
+		const activeParams = Object.fromEntries(
+			Object.entries(params).filter(([_, v]) => v !== null && v !== undefined)
+		);
+
 		const [res, controller] = await chatCompletion(
 			localStorage.token,
 			{
@@ -96,7 +115,8 @@
 							}
 						: undefined,
 					...messages
-				].filter((message) => message)
+				].filter((message) => message),
+				...(Object.keys(activeParams).length > 0 ? activeParams : {})
 			},
 			`${WEBUI_BASE_URL}/api`
 		);
@@ -193,6 +213,94 @@
 		}
 	};
 
+	const exportToJson = () => {
+		const now = Math.floor(Date.now() / 1000);
+
+		// Convert flat messages array to history map format
+		const messagesMap: Record<string, any> = {};
+		let currentId: string | null = null;
+		let parentId: string | null = null;
+
+		// Add system message if present
+		if (system) {
+			const systemId = crypto.randomUUID();
+			messagesMap[systemId] = {
+				id: systemId,
+				parentId: null,
+				childrenIds: [],
+				role: 'system',
+				content: system,
+				timestamp: now
+			};
+			parentId = systemId;
+		}
+
+		// Add conversation messages
+		for (const msg of messages) {
+			const msgId = crypto.randomUUID();
+
+			// Link parent to child
+			if (parentId && messagesMap[parentId]) {
+				messagesMap[parentId].childrenIds.push(msgId);
+			}
+
+			messagesMap[msgId] = {
+				id: msgId,
+				parentId: parentId,
+				childrenIds: [],
+				role: msg.role,
+				content: msg.content,
+				timestamp: now,
+				...(msg.role === 'assistant' && selectedModelId ? { model: selectedModelId } : {})
+			};
+
+			currentId = msgId;
+			parentId = msgId;
+		}
+
+		const exportData = {
+			chat: {
+				title: 'Playground Chat',
+				models: [selectedModelId],
+				params: system ? { system } : {},
+				history: {
+					messages: messagesMap,
+					currentId
+				}
+			},
+			meta: {},
+			pinned: false,
+			created_at: now,
+			updated_at: now
+		};
+
+		const blob = new Blob([JSON.stringify([exportData], null, 2)], {
+			type: 'application/json'
+		});
+		saveAs(blob, `playground-chat-${Date.now()}.json`);
+		toast.success($i18n.t('Chat exported successfully'));
+	};
+
+	const downloadTxt = () => {
+		let chatText = '';
+
+		// Add system message if present
+		if (system) {
+			chatText += `### SYSTEM\n${system}\n\n`;
+		}
+
+		// Add conversation messages
+		for (const msg of messages) {
+			chatText += `### ${msg.role.toUpperCase()}\n${msg.content}\n\n`;
+		}
+
+		const blob = new Blob([chatText.trim()], {
+			type: 'text/plain'
+		});
+		saveAs(blob, `playground-chat-${Date.now()}.txt`);
+		toast.success($i18n.t('Chat exported successfully'));
+	};
+
 	onMount(async () => {
 		if ($user?.role !== 'admin') {
 			await goto('/');
@@ -209,14 +317,34 @@
 	});
 </script>
 
+<Modal size="sm" bind:show={showControls}>
+	<div class="text-gray-700 dark:text-gray-100">
+		<div class="flex justify-between px-4.5 pt-4.5 pb-2">
+			<div class="text-lg font-medium self-center">{$i18n.t('Controls')}</div>
+			<button
+				class="self-center"
+				aria-label={$i18n.t('Close')}
+				on:click={() => {
+					showControls = false;
+				}}
+			>
+				<XMark className="size-5" />
+			</button>
+		</div>
+		<div class="px-4.5 pb-5 overflow-y-auto max-h-[70vh]">
+			<AdvancedParams admin={$user?.role === 'admin'} custom={true} bind:params />
+		</div>
+	</div>
+</Modal>
+
 <div class=" flex flex-col justify-between w-full overflow-y-auto h-full">
 	<div class="mx-auto w-full md:px-0 h-full relative">
 		<div class=" flex flex-col h-full px-3.5">
-			<div class="flex w-full items-start gap-1.5">
+			<div class="flex w-full items-center gap-1.5">
 				<Collapsible
 					className="w-full flex-1"
 					bind:open={showSystem}
-					buttonClassName="w-full rounded-lg text-sm border border-gray-100 dark:border-gray-850 w-full py-1 px-1.5"
+					buttonClassName="w-full rounded-lg text-sm border border-gray-100/30 dark:border-gray-850/30 w-full py-1 px-1.5"
 					grow={true}
 				>
 					<div class="flex gap-2 justify-between items-center">
@@ -224,7 +352,7 @@
 							{$i18n.t('System Instructions')}
 						</div>
 
-						{#if !showSystem}
+						{#if !showSystem && system.trim()}
 							<div class=" flex-1 text-gray-500 line-clamp-1">
 								{system}
 							</div>
@@ -256,6 +384,51 @@
 						</div>
 					</div>
 				</Collapsible>
+
+				<Dropdown>
+					<button
+						class="p-1.5 text-sm font-medium bg-transparent hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 dark:text-gray-400 transition rounded-lg"
+						aria-label={$i18n.t('More options')}
+					>
+						<EllipsisHorizontal className="size-4" />
+					</button>
+
+					<div slot="content">
+						<div
+							class="min-w-[200px] rounded-2xl px-1 py-1 border border-gray-100 dark:border-gray-800 z-50 bg-white dark:bg-gray-850 dark:text-white shadow-lg"
+						>
+							<DropdownSub>
+								<button
+									slot="trigger"
+									class="flex gap-2 items-center px-3 py-1.5 text-sm cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded-xl select-none w-full"
+								>
+									<Download strokeWidth="1.5" />
+									<div class="flex items-center">{$i18n.t('Download')}</div>
+								</button>
+								<button
+									class="flex gap-2 items-center px-3 py-1.5 text-sm cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded-xl select-none w-full"
+									disabled={messages.length === 0}
+									on:click={() => {
+										exportToJson();
+									}}
+								>
+									<div class="flex items-center line-clamp-1">
+										{$i18n.t('Export chat (.json)')}
+									</div>
+								</button>
+								<button
+									class="flex gap-2 items-center px-3 py-1.5 text-sm cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded-xl select-none w-full"
+									disabled={messages.length === 0}
+									on:click={() => {
+										downloadTxt();
+									}}
+								>
+									<div class="flex items-center line-clamp-1">{$i18n.t('Plain text (.txt)')}</div>
+								</button>
+							</DropdownSub>
+						</div>
+					</div>
+				</Dropdown>
 			</div>
 
 			<div
@@ -271,7 +444,9 @@
 			</div>
 
 			<div class="pb-3">
-				<div class="border border-gray-100 dark:border-gray-850 w-full px-3 py-2.5 rounded-xl">
+				<div
+					class="border border-gray-100/30 dark:border-gray-850/30 w-full px-3 py-2.5 rounded-xl"
+				>
 					<div class="py-0.5">
 						<!-- $i18n.t('a user') -->
 						<!-- $i18n.t('an assistant') -->
@@ -296,7 +471,7 @@
 					<div
 						class="flex justify-between flex-col sm:flex-row items-start sm:items-center gap-2 mt-2"
 					>
-						<div class="flex-1 shrink-0">
+						<div class="shrink-0">
 							<button
 								type="button"
 								class="px-3.5 py-1.5 text-sm font-medium bg-gray-50 hover:bg-gray-100 text-gray-900 dark:bg-gray-850 dark:hover:bg-gray-800 dark:text-gray-200 transition rounded-lg shrink-0 {($settings?.highContrastMode ??
@@ -322,7 +497,7 @@
 						<div class="flex items-center justify-between gap-2 w-full sm:w-auto">
 							<div class="flex-1">
 								<select
-									class=" bg-transparent border border-gray-100 dark:border-gray-850 rounded-lg py-1 px-2 -mx-0.5 text-sm outline-hidden w-full"
+									class=" bg-transparent border border-gray-100/30 dark:border-gray-850/30 rounded-lg py-1 px-2 -mx-0.5 text-sm outline-hidden w-full"
 									bind:value={selectedModelId}
 								>
 									{#each $models as model}
@@ -332,6 +507,19 @@
 									{/each}
 								</select>
 							</div>
+
+							<button
+								class="p-1.5 text-sm font-medium bg-transparent hover:bg-gray-100 dark:hover:bg-gray-800 transition rounded-lg {showControls
+									? 'text-black dark:text-white'
+									: 'text-gray-500 dark:text-gray-400'}"
+								aria-label={$i18n.t('Controls')}
+								id="playground-controls-toggle"
+								on:click={() => {
+									showControls = !showControls;
+								}}
+							>
+								<AdjustmentsHorizontal className="size-4" />
+							</button>
 
 							<div class="flex gap-2 shrink-0">
 								{#if !loading}

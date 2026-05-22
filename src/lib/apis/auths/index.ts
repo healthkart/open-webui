@@ -328,7 +328,7 @@ export const userSignOut = async () => {
 	let error = null;
 
 	const res = await fetch(`${WEBUI_API_BASE_URL}/auths/signout`, {
-		method: 'GET',
+		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json'
 		},
@@ -413,6 +413,9 @@ export const updateUserProfile = async (token: string, profile: object) => {
 		.catch((err) => {
 			console.error(err);
 			error = err.detail;
+			if (Array.isArray(error)) {
+				error = error.map((e: { msg?: string }) => e.msg).join('; ');
+			}
 			return null;
 		});
 
@@ -421,6 +424,19 @@ export const updateUserProfile = async (token: string, profile: object) => {
 	}
 
 	return res;
+};
+
+export const updateUserTimezone = async (token: string, timezone: string) => {
+	await fetch(`${WEBUI_API_BASE_URL}/auths/update/timezone`, {
+		method: 'POST',
+		headers: {
+			'Content-Type': 'application/json',
+			...(token && { authorization: `Bearer ${token}` })
+		},
+		body: JSON.stringify({ timezone })
+	}).catch((err) => {
+		console.error('Failed to update timezone:', err);
+	});
 };
 
 export const updateUserPassword = async (token: string, password: string, newPassword: string) => {
@@ -694,5 +710,35 @@ export const deleteAPIKey = async (token: string) => {
 	if (error) {
 		throw error;
 	}
+	return res;
+};
+
+export const deleteOAuthSession = async (token: string, provider: string) => {
+	let error = null;
+
+	const res = await fetch(
+		`${WEBUI_API_BASE_URL}/auths/oauth/sessions/${encodeURIComponent(provider)}`,
+		{
+			method: 'DELETE',
+			headers: {
+				'Content-Type': 'application/json',
+				Authorization: `Bearer ${token}`
+			}
+		}
+	)
+		.then(async (res) => {
+			if (!res.ok) throw await res.json();
+			return res.json();
+		})
+		.catch((err) => {
+			console.error(err);
+			error = err.detail;
+			return null;
+		});
+
+	if (error) {
+		throw error;
+	}
+
 	return res;
 };

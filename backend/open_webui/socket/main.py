@@ -249,6 +249,25 @@ def get_models_in_use():
     return models_in_use
 
 
+def get_active_user_ids():
+    """Get the list of active user IDs from the current session pool."""
+    return list({user['id'] for user in SESSION_POOL.values() if user is not None})
+
+
+def get_active_status_by_user_id(user_id: str) -> bool:
+    """Return whether the given user currently has an active websocket session."""
+    now = int(time.time())
+    for user in SESSION_POOL.values():
+        if not user:
+            continue
+        if user.get('id') != user_id:
+            continue
+        # Treat recently-seen sessions as active even before periodic cleanup runs.
+        if now - user.get('last_seen_at', now) <= SESSION_POOL_TIMEOUT:
+            return True
+    return False
+
+
 def get_user_id_from_session_pool(sid):
     user = SESSION_POOL.get(sid)
     if user:
@@ -898,8 +917,9 @@ async def _make_channel_emitter(request_info):
 
 
 async def get_event_emitter(request_info, update_db=True):
+    chat_id = request_info.get('chat_id') or ''
     # Channel mode: route pipeline output to channel message updates
-    if request_info.get('chat_id', '').startswith('channel:'):
+    if chat_id.startswith('channel:'):
         return await _make_channel_emitter(request_info)
 
     async def __event_emitter__(event_data):
@@ -917,7 +937,7 @@ async def get_event_emitter(request_info, update_db=True):
             room=f'user:{user_id}',
         )
 
-        if update_db and message_id and not request_info.get('chat_id', '').startswith('local:'):
+        if update_db and message_id and not chat_id.startswith('local:'):
             event_type = event_data.get('type')
 
             if event_type == 'status':

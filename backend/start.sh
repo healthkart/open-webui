@@ -5,6 +5,12 @@ cd "$SCRIPT_DIR" || exit
 
 # Add conditional Playwright browser installation
 if [[ "${WEB_LOADER_ENGINE,,}" == "playwright" ]]; then
+    if ! command -v playwright >/dev/null 2>&1; then
+        echo "WEB_LOADER_ENGINE=playwright but Playwright is not installed in this image."
+        echo "Rebuild with build arg USE_PLAYWRIGHT=true to enable it."
+        exit 1
+    fi
+
     if [[ -z "${PLAYWRIGHT_WS_URL}" ]]; then
         echo "Installing Playwright browsers..."
         playwright install chromium

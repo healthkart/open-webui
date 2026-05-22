@@ -2847,6 +2847,60 @@ DOCLING_PARAMS = PersistentConfig(
     docling_params,
 )
 
+# Backward-compatible Docling settings expected by older imports/routes.
+DOCLING_OCR_ENGINE = PersistentConfig(
+    'DOCLING_OCR_ENGINE',
+    'rag.docling.ocr_engine',
+    os.getenv('DOCLING_OCR_ENGINE', docling_params.get('ocr_engine', 'easyocr')),
+)
+
+DOCLING_OCR_LANG = PersistentConfig(
+    'DOCLING_OCR_LANG',
+    'rag.docling.ocr_lang',
+    os.getenv('DOCLING_OCR_LANG', docling_params.get('ocr_lang', 'en')),
+)
+
+DOCLING_DO_PICTURE_DESCRIPTION = PersistentConfig(
+    'DOCLING_DO_PICTURE_DESCRIPTION',
+    'rag.docling.do_picture_description',
+    str(
+        os.getenv(
+            'DOCLING_DO_PICTURE_DESCRIPTION',
+            str(docling_params.get('do_picture_description', False)),
+        )
+    ).lower()
+    == 'true',
+)
+
+DOCLING_PICTURE_DESCRIPTION_MODE = PersistentConfig(
+    'DOCLING_PICTURE_DESCRIPTION_MODE',
+    'rag.docling.picture_description_mode',
+    os.getenv(
+        'DOCLING_PICTURE_DESCRIPTION_MODE',
+        docling_params.get('picture_description_mode', 'local'),
+    ),
+)
+
+docling_picture_description_local = docling_params.get('picture_description_local', {})
+if not isinstance(docling_picture_description_local, dict):
+    docling_picture_description_local = {}
+
+docling_picture_description_api = docling_params.get('picture_description_api', {})
+if not isinstance(docling_picture_description_api, dict):
+    docling_picture_description_api = {}
+
+DOCLING_PICTURE_DESCRIPTION_LOCAL = PersistentConfig(
+    'DOCLING_PICTURE_DESCRIPTION_LOCAL',
+    'rag.docling.picture_description_local',
+    docling_picture_description_local,
+)
+
+DOCLING_PICTURE_DESCRIPTION_API = PersistentConfig(
+    'DOCLING_PICTURE_DESCRIPTION_API',
+    'rag.docling.picture_description_api',
+    docling_picture_description_api,
+)
+
 DOCUMENT_INTELLIGENCE_ENDPOINT = PersistentConfig(
     'DOCUMENT_INTELLIGENCE_ENDPOINT',
     'rag.document_intelligence_endpoint',
@@ -3163,14 +3217,14 @@ RAG_AZURE_OPENAI_API_VERSION = PersistentConfig(
 
 # Gemini (Google AI Studio)
 RAG_GEMINI_API_BASE_URL = PersistentConfig(
-    "RAG_GEMINI_API_BASE_URL",
-    "rag.gemini.api_base_url",
-    os.getenv("RAG_GEMINI_API_BASE_URL", "https://generativelanguage.googleapis.com/v1beta"),
+    'RAG_GEMINI_API_BASE_URL',
+    'rag.gemini.api_base_url',
+    os.getenv('RAG_GEMINI_API_BASE_URL', 'https://generativelanguage.googleapis.com/v1beta'),
 )
 RAG_GEMINI_API_KEY = PersistentConfig(
-    "RAG_GEMINI_API_KEY",
-    "rag.gemini.api_key",
-    os.getenv("RAG_GEMINI_API_KEY", ""),
+    'RAG_GEMINI_API_KEY',
+    'rag.gemini.api_key',
+    os.getenv('RAG_GEMINI_API_KEY', ''),
 )
 
 RAG_OLLAMA_BASE_URL = PersistentConfig(

@@ -1,0 +1,5 @@
+# Installed only when USE_DOCLING=true
+# Provides local PDF processing via Docling's DocumentConverter (IBM Research)
+# Requires CPU torch — installed separately in the Dockerfile before this file
+# Latest: https://pypi.org/project/docling/
+docling==2.95.0

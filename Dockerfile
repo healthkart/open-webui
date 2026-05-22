@@ -5,6 +5,14 @@ ARG USE_CUDA=false
 ARG USE_OLLAMA=false
 ARG USE_SLIM=false
 ARG USE_PERMISSION_HARDENING=false
+# Set to true to install torch + sentence-transformers for local embedding inference.
+# Leave false (default) when using an external engine (gemini, openai, ollama, azure_openai).
+ARG USE_LOCAL_EMBEDDINGS=false
+# Set to true to install Docling for local PDF processing (table structure, layout analysis).
+# Uses CPU-only torch. Independent of USE_LOCAL_EMBEDDINGS.
+ARG USE_DOCLING=false
+# Set to true to include Playwright Python package for WEB_LOADER_ENGINE=playwright.
+ARG USE_PLAYWRIGHT=false
 # Tested with cu117 for CUDA 11 and cu121 for CUDA 12 (default)
 ARG USE_CUDA_VER=cu128
 # any sentence transformer model; models to use can be found at https://huggingface.co/models?library=sentence-transformers
@@ -24,7 +32,7 @@ ARG UID=0
 ARG GID=0
 
 ######## WebUI frontend ########
-FROM --platform=$BUILDPLATFORM node:22.11-alpine3.20 AS build
+FROM node:22.11-alpine3.20 AS frontend
 ARG BUILD_HASH
 
 # Set Node.js options (heap limit Allocation failed - JavaScript heap out of memory)
@@ -33,12 +41,21 @@ ARG BUILD_HASH
 WORKDIR /app
 
 # to store git revision in build
-RUN apk add --no-cache git
+RUN apk add --no-cache git=2.45.4-r0
 
 COPY package.json package-lock.json ./
 RUN npm ci --force
 
-COPY . .
+COPY .npmrc ./
+COPY CHANGELOG.md ./
+COPY postcss.config.js ./
+COPY svelte.config.js ./
+COPY tailwind.config.js ./
+COPY tsconfig.json ./
+COPY vite.config.ts ./
+COPY src ./src
+COPY static ./static
+COPY scripts ./scripts
 ENV APP_BUILD_HASH=${BUILD_HASH}
 ENV NODE_OPTIONS="--max-old-space-size=4096"
 RUN npm run build
@@ -52,6 +69,9 @@ ARG USE_OLLAMA
 ARG USE_CUDA_VER
 ARG USE_SLIM
 ARG USE_PERMISSION_HARDENING
+ARG USE_LOCAL_EMBEDDINGS
+ARG USE_DOCLING
+ARG USE_PLAYWRIGHT
 ARG USE_EMBEDDING_MODEL
 ARG USE_RERANKING_MODEL
 ARG USE_AUXILIARY_EMBEDDING_MODEL
@@ -69,6 +89,9 @@ ENV ENV=prod \
     USE_CUDA_DOCKER=${USE_CUDA} \
     USE_SLIM_DOCKER=${USE_SLIM} \
     USE_CUDA_DOCKER_VER=${USE_CUDA_VER} \
+    USE_LOCAL_EMBEDDINGS_DOCKER=${USE_LOCAL_EMBEDDINGS} \
+    USE_DOCLING_DOCKER=${USE_DOCLING} \
+    USE_PLAYWRIGHT_DOCKER=${USE_PLAYWRIGHT} \
     USE_EMBEDDING_MODEL_DOCKER=${USE_EMBEDDING_MODEL} \
     USE_RERANKING_MODEL_DOCKER=${USE_RERANKING_MODEL} \
     USE_AUXILIARY_EMBEDDING_MODEL_DOCKER=${USE_AUXILIARY_EMBEDDING_MODEL}
@@ -78,9 +101,7 @@ ENV OLLAMA_BASE_URL="/ollama" \
     OPENAI_API_BASE_URL=""
 
 ## API Key and Security Config ##
-ENV OPENAI_API_KEY="" \
-    WEBUI_SECRET_KEY="" \
-    SCARF_NO_ANALYTICS=true \
+ENV SCARF_NO_ANALYTICS=true \
     DO_NOT_TRACK=true \
     ANONYMIZED_TELEMETRY=false
 
@@ -94,10 +115,6 @@ ENV RAG_EMBEDDING_MODEL="$USE_EMBEDDING_MODEL_DOCKER" \
     RAG_RERANKING_MODEL="$USE_RERANKING_MODEL_DOCKER" \
     AUXILIARY_EMBEDDING_MODEL="$USE_AUXILIARY_EMBEDDING_MODEL_DOCKER" \
     SENTENCE_TRANSFORMERS_HOME="/app/backend/data/cache/embedding/models"
-
-## Tiktoken model settings ##
-ENV TIKTOKEN_ENCODING_NAME="cl100k_base" \
-    TIKTOKEN_CACHE_DIR="/app/backend/data/cache/tiktoken"
 
 ## Hugging Face download cache ##
 ENV HF_HOME="/app/backend/data/cache/embedding/models"
@@ -116,21 +133,15 @@ RUN if [ $UID -ne 0 ]; then \
     addgroup --gid $GID app; \
     fi; \
     adduser --uid $UID --gid $GID --home $HOME --disabled-password --no-create-home app; \
-    fi
-
-RUN mkdir -p $HOME/.cache/chroma
-RUN echo -n 00000000-0000-0000-0000-000000000000 > $HOME/.cache/chroma/telemetry_user_id
-
-# Make sure the user has access to the app and root directory
-RUN chown -R $UID:$GID /app $HOME
+    fi && \
+    mkdir -p $HOME/.cache/chroma && \
+    echo -n 00000000-0000-0000-0000-000000000000 > $HOME/.cache/chroma/telemetry_user_id && \
+    chown -R $UID:$GID /app $HOME
 
 # Install common system dependencies
 RUN apt-get update && \
-    # install poppler
-    apt-get install -y --no-install-recommends  libpoppler-dev && \
-    apt-get install -y --no-install-recommends poppler-utils && \
     apt-get install -y --no-install-recommends \
-    git build-essential pandoc gcc netcat-openbsd curl jq \
+    git build-essential pandoc netcat-openbsd curl jq \
     libmariadb-dev \
     python3-dev \
     ffmpeg libsm6 libxext6 zstd \
@@ -138,52 +149,73 @@ RUN apt-get update && \
 
 # install python dependencies
 COPY --chown=$UID:$GID ./backend/requirements.txt ./requirements.txt
+COPY --chown=$UID:$GID ./backend/requirements.local-embeddings.txt ./requirements.local-embeddings.txt
+COPY --chown=$UID:$GID ./backend/requirements.docling.txt ./requirements.docling.txt
+COPY --chown=$UID:$GID ./backend/requirements.playwright.txt ./requirements.playwright.txt
 
 # Set UV_LINK_MODE to copy to prevent 0-byte file corruption in QEMU arm64 cross-builds
 ENV UV_LINK_MODE=copy
 
 RUN set -e; \
-    pip3 install --no-cache-dir uv; \
+    pip3 install --no-cache-dir 'uv==0.8.0'; \
     if [ "$USE_CUDA" = "true" ]; then \
-    # If you use CUDA the whisper and embedding model will be downloaded on first use
-    # fix: pin torch<=2.9.1 - torch 2.10.0 aarch64 wheels cause SIGILL on ARM devices (RPi 4 Cortex-A72) #21349
-    pip3 install 'torch<=2.9.1' torchvision torchaudio --index-url https://download.pytorch.org/whl/$USE_CUDA_DOCKER_VER --no-cache-dir; \
+    # CUDA build: local inference dependencies pinned for reproducibility.
+    pip3 install 'torch==2.9.1' 'torchvision==0.24.1' 'torchaudio==2.9.1' --index-url https://download.pytorch.org/whl/$USE_CUDA_DOCKER_VER --no-cache-dir; \
     uv pip install --system -r requirements.txt --no-cache-dir; \
+    uv pip install --system -r requirements.local-embeddings.txt --no-cache-dir; \
     python -c "import os; from sentence_transformers import SentenceTransformer; SentenceTransformer(os.environ['RAG_EMBEDDING_MODEL'], device='cpu')"; \
     python -c "import os; from sentence_transformers import SentenceTransformer; SentenceTransformer(os.environ.get('AUXILIARY_EMBEDDING_MODEL', 'TaylorAI/bge-micro-v2'), device='cpu')"; \
     python -c "import os; from faster_whisper import WhisperModel; WhisperModel(os.environ['WHISPER_MODEL'], device='cpu', compute_type='int8', download_root=os.environ['WHISPER_MODEL_DIR'])"; \
-    python -c "import os; import tiktoken; tiktoken.get_encoding(os.environ['TIKTOKEN_ENCODING_NAME'])"; \
+    python -c "import os; import tiktoken; tiktoken.get_encoding(os.environ.get('TIKTOKEN_ENCODING_NAME', 'cl100k_base'))"; \
     python -c "import nltk; nltk.download('punkt_tab')"; \
-    else \
-    pip3 install 'torch<=2.9.1' torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu --no-cache-dir; \
+    elif [ "$USE_LOCAL_EMBEDDINGS" = "true" ]; then \
+    # CPU build with local sentence-transformer inference
+    pip3 install 'torch==2.9.1' 'torchvision==0.24.1' 'torchaudio==2.9.1' --index-url https://download.pytorch.org/whl/cpu --no-cache-dir; \
     uv pip install --system -r requirements.txt --no-cache-dir; \
+    uv pip install --system -r requirements.local-embeddings.txt --no-cache-dir; \
     if [ "$USE_SLIM" != "true" ]; then \
     python -c "import os; from sentence_transformers import SentenceTransformer; SentenceTransformer(os.environ['RAG_EMBEDDING_MODEL'], device='cpu')"; \
     python -c "import os; from sentence_transformers import SentenceTransformer; SentenceTransformer(os.environ.get('AUXILIARY_EMBEDDING_MODEL', 'TaylorAI/bge-micro-v2'), device='cpu')"; \
     python -c "import os; from faster_whisper import WhisperModel; WhisperModel(os.environ['WHISPER_MODEL'], device='cpu', compute_type='int8', download_root=os.environ['WHISPER_MODEL_DIR'])"; \
-    python -c "import os; import tiktoken; tiktoken.get_encoding(os.environ['TIKTOKEN_ENCODING_NAME'])"; \
+    python -c "import os; import tiktoken; tiktoken.get_encoding(os.environ.get('TIKTOKEN_ENCODING_NAME', 'cl100k_base'))"; \
     python -c "import nltk; nltk.download('punkt_tab')"; \
     fi; \
+    else \
+    # External embedding engine (openai / ollama / gemini / azure_openai)
+    # Skip sentence-transformers. Install CPU torch only if Docling is requested.
+    if [ "$USE_DOCLING" = "true" ]; then \
+    pip3 install 'torch==2.9.1' 'torchvision==0.24.1' 'torchaudio==2.9.1' --index-url https://download.pytorch.org/whl/cpu --no-cache-dir; \
     fi; \
-    mkdir -p /app/backend/data; chown -R $UID:$GID /app/backend/data/; \
-    rm -rf /var/lib/apt/lists/*;
+    uv pip install --system -r requirements.txt --no-cache-dir; \
+    if [ "$USE_DOCLING" = "true" ]; then \
+    uv pip install --system -r requirements.docling.txt --no-cache-dir; \
+    fi; \
+    python -c "import os; import tiktoken; tiktoken.get_encoding(os.environ.get('TIKTOKEN_ENCODING_NAME', 'cl100k_base'))"; \
+    python -c "import nltk; nltk.download('punkt_tab')"; \
+    fi; \
+    if [ "$USE_PLAYWRIGHT" = "true" ]; then \
+    uv pip install --system -r requirements.playwright.txt --no-cache-dir; \
+    fi; \
+    mkdir -p /app/backend/data; chown -R $UID:$GID /app/backend/data/;
 
 # Install Ollama if requested
 RUN if [ "$USE_OLLAMA" = "true" ]; then \
     date +%s > /tmp/ollama_build_hash && \
     echo "Cache broken at timestamp: `cat /tmp/ollama_build_hash`" && \
-    curl -fsSL https://ollama.com/install.sh | sh && \
+    curl -fsSL -o /tmp/ollama-install.sh https://ollama.com/install.sh && \
+    sh /tmp/ollama-install.sh && \
+    rm -f /tmp/ollama-install.sh && \
     rm -rf /var/lib/apt/lists/*; \
     fi
 
 # copy embedding weight from build
 # RUN mkdir -p /root/.cache/chroma/onnx_models/all-MiniLM-L6-v2
-# COPY --from=build /app/onnx /root/.cache/chroma/onnx_models/all-MiniLM-L6-v2/onnx
+# COPY --from=frontend /app/onnx /root/.cache/chroma/onnx_models/all-MiniLM-L6-v2/onnx
 
 # copy built frontend files
-COPY --chown=$UID:$GID --from=build /app/build /app/build
-COPY --chown=$UID:$GID --from=build /app/CHANGELOG.md /app/CHANGELOG.md
-COPY --chown=$UID:$GID --from=build /app/package.json /app/package.json
+COPY --chown=$UID:$GID --from=frontend /app/build /app/build
+COPY --chown=$UID:$GID --from=frontend /app/CHANGELOG.md /app/CHANGELOG.md
+COPY --chown=$UID:$GID --from=frontend /app/package.json /app/package.json
 
 # copy backend files
 COPY --chown=$UID:$GID ./backend .

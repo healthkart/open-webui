@@ -30,7 +30,7 @@ async def apply_system_prompt_to_body(
             system = prompt_variables_template(system, variables)
 
     # Legacy (API Usage)
-    system = await prompt_template(system, user)
+    system = prompt_template(system, user)
 
     if replace:
         form_data['messages'] = replace_system_message_content(system, form_data.get('messages', []))

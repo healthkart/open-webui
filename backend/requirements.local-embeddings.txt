@@ -1,0 +1,10 @@
+# Installed only when USE_LOCAL_EMBEDDINGS=true (local sentence-transformer inference)
+# Not needed when using external embedding engines: openai, ollama, gemini, azure_openai
+sentence-transformers==4.1.0
+transformers
+accelerate
+colbert-ai==0.2.21
+einops==0.8.1
+sentencepiece
+# ML-based PDF layout analysis — pulls in torch as a dependency
+unstructured-inference==0.8.7

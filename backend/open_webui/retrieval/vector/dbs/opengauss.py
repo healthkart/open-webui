@@ -72,13 +72,13 @@ from open_webui.config import (
     OPENGAUSS_POOL_RECYCLE,
 )
 
-from open_webui.env import SRC_LOG_LEVELS
+from open_webui.env import GLOBAL_LOG_LEVEL
 
 VECTOR_LENGTH = OPENGAUSS_INITIALIZE_MAX_VECTOR_LENGTH
 Base = declarative_base()
 
 log = logging.getLogger(__name__)
-log.setLevel(SRC_LOG_LEVELS['RAG'])
+log.setLevel(GLOBAL_LOG_LEVEL)
 
 
 class DocumentChunk(Base):

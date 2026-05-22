@@ -5,10 +5,10 @@ from typing import Optional
 import uuid
 
 from open_webui.internal.db import Base, get_db
-from open_webui.env import SRC_LOG_LEVELS
+from open_webui.env import GLOBAL_LOG_LEVEL
 
 from open_webui.models.files import FileMetadataResponse
-from open_webui.models.users import Users, UserResponse
+from open_webui.models.users import User, UserResponse
 
 
 from pydantic import BaseModel, ConfigDict
@@ -16,7 +16,7 @@ from sqlalchemy import BigInteger, Column, String, Text, JSON, Boolean
 from open_webui.utils.access_control import has_access
 
 log = logging.getLogger(__name__)
-log.setLevel(SRC_LOG_LEVELS["MODELS"])
+log.setLevel(GLOBAL_LOG_LEVEL)
 
 ####################
 # Knowledge DB Schema
@@ -24,7 +24,7 @@ log.setLevel(SRC_LOG_LEVELS["MODELS"])
 
 
 class Knowledge(Base):
-    __tablename__ = "knowledge"
+    __tablename__ = 'knowledge'
 
     id = Column(Text, unique=True, primary_key=True)
     user_id = Column(Text)
@@ -102,17 +102,15 @@ class KnowledgeForm(BaseModel):
 
 
 class KnowledgeTable:
-    def insert_new_knowledge(
-        self, user_id: str, form_data: KnowledgeForm
-    ) -> Optional[KnowledgeModel]:
+    def insert_new_knowledge(self, user_id: str, form_data: KnowledgeForm) -> Optional[KnowledgeModel]:
         with get_db() as db:
             knowledge = KnowledgeModel(
                 **{
                     **form_data.model_dump(),
-                    "id": str(uuid.uuid4()),
-                    "user_id": user_id,
-                    "created_at": int(time.time()),
-                    "updated_at": int(time.time()),
+                    'id': str(uuid.uuid4()),
+                    'user_id': user_id,
+                    'created_at': int(time.time()),
+                    'updated_at': int(time.time()),
                 }
             )
 
@@ -131,29 +129,34 @@ class KnowledgeTable:
     def get_knowledge_bases(self) -> list[KnowledgeUserModel]:
         with get_db() as db:
             knowledge_bases = []
-            for knowledge in (
-                db.query(Knowledge).order_by(Knowledge.updated_at.desc()).all()
-            ):
-                user = Users.get_user_by_id(knowledge.user_id)
+            for knowledge in db.query(Knowledge).order_by(Knowledge.updated_at.desc()).all():
+                user = db.query(User).filter_by(id=knowledge.user_id).first()
+                user_data = (
+                    {
+                        'id': user.id,
+                        'name': user.name,
+                        'role': user.role,
+                        'email': user.email,
+                    }
+                    if user
+                    else None
+                )
                 knowledge_bases.append(
                     KnowledgeUserModel.model_validate(
                         {
                             **KnowledgeModel.model_validate(knowledge).model_dump(),
-                            "user": user.model_dump() if user else None,
+                            'user': user_data,
                         }
                     )
                 )
             return knowledge_bases
 
-    def get_knowledge_bases_by_user_id(
-        self, user_id: str, permission: str = "write"
-    ) -> list[KnowledgeUserModel]:
+    def get_knowledge_bases_by_user_id(self, user_id: str, permission: str = 'write') -> list[KnowledgeUserModel]:
         knowledge_bases = self.get_knowledge_bases()
         return [
             knowledge_base
             for knowledge_base in knowledge_bases
-            if knowledge_base.user_id == user_id
-            or has_access(user_id, permission, knowledge_base.access_control)
+            if knowledge_base.user_id == user_id or has_access(user_id, permission, knowledge_base.access_control)
         ]
 
     def get_knowledge_by_id(self, id: str) -> Optional[KnowledgeModel]:
@@ -173,7 +176,7 @@ class KnowledgeTable:
                 db.query(Knowledge).filter_by(id=id).update(
                     {
                         **form_data.model_dump(),
-                        "updated_at": int(time.time()),
+                        'updated_at': int(time.time()),
                     }
                 )
                 db.commit()
@@ -182,16 +185,14 @@ class KnowledgeTable:
             log.exception(e)
             return None
 
-    def update_knowledge_data_by_id(
-        self, id: str, data: dict
-    ) -> Optional[KnowledgeModel]:
+    def update_knowledge_data_by_id(self, id: str, data: dict) -> Optional[KnowledgeModel]:
         try:
             with get_db() as db:
                 knowledge = self.get_knowledge_by_id(id=id)
                 db.query(Knowledge).filter_by(id=id).update(
                     {
-                        "data": data,
-                        "updated_at": int(time.time()),
+                        'data': data,
+                        'updated_at': int(time.time()),
                     }
                 )
                 db.commit()

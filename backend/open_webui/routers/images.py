@@ -52,6 +52,30 @@ IMAGE_CACHE_DIR.mkdir(parents=True, exist_ok=True)
 router = APIRouter()
 
 
+def load_b64_image_data(data: str) -> tuple[bytes | None, str | None]:
+    """Extract and decode base64 image payloads from data-URI strings.
+
+    Accepts either a raw data URI (`data:image/png;base64,...`) or text that
+    contains one (e.g., markdown/image output lines).
+    """
+    if not data:
+        return None, None
+
+    # Match data URI anywhere in the input line.
+    match = re.search(r'(data:image/[-+.\w]+;base64,[A-Za-z0-9+/=\s]+)', data)
+    if not match:
+        return None, None
+
+    data_uri = match.group(1).strip()
+    try:
+        header, encoded = data_uri.split(',', 1)
+        content_type = header.split(';')[0].replace('data:', '', 1)
+        encoded = encoded.strip().replace('\n', '').replace('\r', '')
+        return base64.b64decode(encoded), content_type
+    except Exception:
+        return None, None
+
+
 async def set_image_model(request: Request, model: str):
     log.info(f'Setting image model to {model}')
     request.app.state.config.IMAGE_GENERATION_MODEL = model

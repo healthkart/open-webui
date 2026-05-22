@@ -2400,17 +2400,27 @@
 		// Only send terminal_id if the model has terminal capability enabled
 		const terminalEnabled = model.info?.meta?.capabilities?.terminal ?? true;
 
-		const res = await generateOpenAIChatCompletion(
-			localStorage.token,
-			{
-				stream: stream,
-				model: model.id,
-				...(messages.length > 0 ? { messages } : {}),
-				params: {
-					...$settings?.params,
-					...params,
-					stop: getStopTokens()
-				},
+			const res = await generateOpenAIChatCompletion(
+				localStorage.token,
+				{
+					stream: stream,
+					model: model.id,
+					messages:
+						messages.length > 0
+							? messages
+							: userMessage?.content
+								? [
+										{
+											role: userMessage.role ?? 'user',
+											content: userMessage.content
+										}
+									]
+								: [],
+					params: {
+						...$settings?.params,
+						...params,
+						stop: getStopTokens()
+					},
 
 				files: (files?.length ?? 0) > 0 ? files : undefined,
 

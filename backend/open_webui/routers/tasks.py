@@ -192,7 +192,7 @@ async def generate_title(request: Request, form_data: dict, user=Depends(get_ver
     else:
         template = DEFAULT_TITLE_GENERATION_PROMPT_TEMPLATE
 
-    content = await title_generation_template(template, form_data['messages'], user)
+    content = title_generation_template(template, form_data['messages'], user)
 
     max_tokens = models[task_model_id].get('info', {}).get('params', {}).get('max_tokens', 1000)
 
@@ -270,7 +270,7 @@ async def generate_follow_ups(request: Request, form_data: dict, user=Depends(ge
     else:
         template = DEFAULT_FOLLOW_UP_GENERATION_PROMPT_TEMPLATE
 
-    content = await follow_up_generation_template(template, form_data['messages'], user)
+    content = follow_up_generation_template(template, form_data['messages'], user)
 
     payload = {
         'model': task_model_id,
@@ -339,7 +339,7 @@ async def generate_chat_tags(request: Request, form_data: dict, user=Depends(get
     else:
         template = DEFAULT_TAGS_GENERATION_PROMPT_TEMPLATE
 
-    content = await tags_generation_template(template, form_data['messages'], user)
+    content = tags_generation_template(template, form_data['messages'], user)
 
     payload = {
         'model': task_model_id,
@@ -402,7 +402,7 @@ async def generate_image_prompt(request: Request, form_data: dict, user=Depends(
     else:
         template = DEFAULT_IMAGE_PROMPT_GENERATION_PROMPT_TEMPLATE
 
-    content = await image_prompt_generation_template(template, form_data['messages'], user)
+    content = image_prompt_generation_template(template, form_data['messages'], user)
 
     payload = {
         'model': task_model_id,
@@ -483,7 +483,7 @@ async def generate_queries(request: Request, form_data: dict, user=Depends(get_v
     else:
         template = DEFAULT_QUERY_GENERATION_PROMPT_TEMPLATE
 
-    content = await query_generation_template(template, form_data['messages'], user)
+    content = query_generation_template(template, form_data['messages'], user)
 
     payload = {
         'model': task_model_id,

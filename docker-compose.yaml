@@ -12,8 +12,7 @@ services:
     image: open-webui:latest
     container_name: llmui
     restart: always
-    ports:
-      - "3000:8080"
+    network_mode: host
     volumes:
       - ./openwebui:/app/backend/data
       - ./docs:/data/docs

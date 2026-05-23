@@ -43,7 +43,8 @@ WORKDIR /app
 # to store git revision in build
 RUN apk add --no-cache git=2.45.4-r0
 
-COPY package.json package-lock.json .npmrc ./
+COPY package.json package-lock.json ./
+COPY .npmrc ./
 RUN npm ci --force
 COPY CHANGELOG.md ./
 COPY postcss.config.js ./

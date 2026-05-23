@@ -46,8 +46,7 @@ RUN apk add --no-cache git=2.45.4-r0
 COPY package.json package-lock.json ./
 COPY .npmrc ./
 ENV CYPRESS_INSTALL_BINARY=0
-ENV ONNXRUNTIME_NODE_INSTALL=skip
-RUN --mount=type=cache,target=/root/.npm npm ci --force
+RUN --mount=type=cache,target=/root/.npm npm ci --force --ignore-scripts
 COPY CHANGELOG.md ./
 COPY postcss.config.js ./
 COPY svelte.config.js ./

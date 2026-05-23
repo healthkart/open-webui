@@ -20,7 +20,7 @@ depends_on = None
 def upgrade():
     op.add_column('chat', sa.Column('last_read_at', sa.BigInteger(), nullable=True))
     # Set existing chats to be marked as read
-    op.execute('UPDATE chat SET last_read_at = updated_at')
+    op.execute('UPDATE chat SET last_read_at = updated_at::bigint')
 
 
 def downgrade():

@@ -1,11 +1,11 @@
 import { WEBUI_API_BASE_URL } from '$lib/constants';
 
 export const createNewKnowledge = async (
-    token: string,
-    name: string,
-    description: string,
-    accessControl: null | object,
-    embed: boolean
+	token: string,
+	name: string,
+	description: string,
+	accessGrants: object[],
+	embed: boolean
 ) => {
 	let error = null;
 
@@ -20,7 +20,7 @@ export const createNewKnowledge = async (
 			name: name,
 			description: description,
 			embed: embed,
-            access_control: accessControl
+			access_grants: accessGrants
 		})
 	})
 		.then(async (res) => {
@@ -73,21 +73,6 @@ export const getKnowledgeBases = async (token: string = '', page: number | null 
 		throw error;
 	}
 
-	if (Array.isArray(res)) {
-		if (page === null) {
-			return res;
-		}
-
-		const pageSize = 50;
-		const pageNumber = Math.max(page, 1);
-		const start = (pageNumber - 1) * pageSize;
-		const end = start + pageSize;
-		return {
-			items: res.slice(start, end),
-			total: res.length
-		};
-	}
-
 	return res;
 };
 
@@ -125,139 +110,130 @@ export const getKnowledgeBaseList = async (token: string = '') => {
 export const searchKnowledgeBases = async (
 	token: string = '',
 	query: string | null = null,
-	_viewOption: string | null = null,
+	viewOption: string | null = null,
 	page: number | null = null
 ) => {
-	const knowledgeBases = (await getKnowledgeBases(token)) ?? [];
-	const normalizedQuery = (query ?? '').trim().toLowerCase();
-	let items = knowledgeBases;
-
-	if (normalizedQuery) {
-		items = knowledgeBases.filter((knowledgeBase: any) => {
-			const name = typeof knowledgeBase?.name === 'string' ? knowledgeBase.name.toLowerCase() : '';
-			const description =
-				typeof knowledgeBase?.description === 'string' ? knowledgeBase.description.toLowerCase() : '';
-			return name.includes(normalizedQuery) || description.includes(normalizedQuery);
-		});
-	}
-
-	const total = items.length;
-	if (page !== null) {
-		const pageSize = 50;
-		const pageNumber = Math.max(page, 1);
-		const start = (pageNumber - 1) * pageSize;
-		const end = start + pageSize;
-		items = items.slice(start, end);
-	}
-
-	return { items, total };
-};
-
-export const searchKnowledgeFiles = async (token: string = '', query: string | null = null) => {
-	const knowledgeBases = (await getKnowledgeBases(token)) ?? [];
-	const normalizedQuery = (query ?? '').trim().toLowerCase();
-	const uniqueFiles = new Map<string, any>();
-
-	for (const knowledgeBase of knowledgeBases) {
-		const files = Array.isArray(knowledgeBase?.files) ? knowledgeBase.files : [];
-
-		for (const file of files) {
-			if (!file?.id) {
-				continue;
-			}
-
-			if (!uniqueFiles.has(file.id)) {
-				uniqueFiles.set(file.id, {
-					...file,
-					knowledge_id: knowledgeBase?.id
-				});
-			}
-		}
-	}
-
-	const files = Array.from(uniqueFiles.values());
-
-	if (!normalizedQuery) {
-		return { items: files };
-	}
-
-	const items = files.filter((file: any) => {
-		const name =
-			typeof file?.meta?.name === 'string'
-				? file.meta.name.toLowerCase()
-				: typeof file?.filename === 'string'
-					? file.filename.toLowerCase()
-					: '';
-		const description = typeof file?.description === 'string' ? file.description.toLowerCase() : '';
-		return name.includes(normalizedQuery) || description.includes(normalizedQuery);
-	});
-
-	return { items };
-};
-
-export const searchKnowledgeFilesById = async (
-	token: string = '',
-	id: string,
-	query: string | null = null,
-	_viewOption: string | null = null,
-	_permission: string | null = null,
-	sortKey: string | null = null,
-	page: number | null = null
-) => {
-	const knowledgeBase = await getKnowledgeById(token, id);
-	const normalizedQuery = (query ?? '').trim().toLowerCase();
-	const files = Array.isArray(knowledgeBase?.files) ? [...knowledgeBase.files] : [];
-
-	let filtered = files;
-	if (normalizedQuery) {
-		filtered = files.filter((file: any) => {
-			const name =
-				typeof file?.meta?.name === 'string'
-					? file.meta.name.toLowerCase()
-					: typeof file?.filename === 'string'
-						? file.filename.toLowerCase()
-						: '';
-			const description = typeof file?.description === 'string' ? file.description.toLowerCase() : '';
-			return name.includes(normalizedQuery) || description.includes(normalizedQuery);
-		});
-	}
-
-	if (sortKey === 'name') {
-		filtered.sort((a: any, b: any) => {
-			const aName = (a?.meta?.name ?? a?.filename ?? '').toLowerCase();
-			const bName = (b?.meta?.name ?? b?.filename ?? '').toLowerCase();
-			return aName.localeCompare(bName);
-		});
-	}
-
-	const total = filtered.length;
-	if (page !== null) {
-		const pageSize = 50;
-		const pageNumber = Math.max(page, 1);
-		const start = (pageNumber - 1) * pageSize;
-		const end = start + pageSize;
-		filtered = filtered.slice(start, end);
-	}
-
-	return { items: filtered, total };
-};
-
-export const exportKnowledgeById = async (token: string, id: string) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/knowledge/${id}/export`, {
+	const searchParams = new URLSearchParams();
+	if (query) searchParams.append('query', query);
+	if (viewOption) searchParams.append('view_option', viewOption);
+	if (page) searchParams.append('page', page.toString());
+
+	const res = await fetch(`${WEBUI_API_BASE_URL}/knowledge/search?${searchParams.toString()}`, {
 		method: 'GET',
 		headers: {
-			Accept: 'application/octet-stream',
+			Accept: 'application/json',
+			'Content-Type': 'application/json',
 			authorization: `Bearer ${token}`
 		}
 	})
 		.then(async (res) => {
 			if (!res.ok) throw await res.json();
-			return await res.blob();
+			return res.json();
+		})
+		.then((json) => {
+			return json;
 		})
 		.catch((err) => {
-			error = err?.detail ?? 'Failed to export knowledge.';
+			error = err.detail;
+			console.error(err);
+			return null;
+		});
+
+	if (error) {
+		throw error;
+	}
+
+	return res;
+};
+
+export const searchKnowledgeFiles = async (
+	token: string,
+	query?: string | null = null,
+	viewOption?: string | null = null,
+	orderBy?: string | null = null,
+	direction?: string | null = null,
+	page: number = 1
+) => {
+	let error = null;
+
+	const searchParams = new URLSearchParams();
+	if (query) searchParams.append('query', query);
+	if (viewOption) searchParams.append('view_option', viewOption);
+	if (orderBy) searchParams.append('order_by', orderBy);
+	if (direction) searchParams.append('direction', direction);
+	searchParams.append('page', page.toString());
+
+	const res = await fetch(
+		`${WEBUI_API_BASE_URL}/knowledge/search/files?${searchParams.toString()}`,
+		{
+			method: 'GET',
+			headers: {
+				Accept: 'application/json',
+				'Content-Type': 'application/json',
+				authorization: `Bearer ${token}`
+			}
+		}
+	)
+		.then(async (res) => {
+			if (!res.ok) throw await res.json();
+			return res.json();
+		})
+		.then((json) => {
+			return json;
+		})
+		.catch((err) => {
+			error = err.detail;
+			console.error(err);
+			return null;
+		});
+
+	if (error) {
+		throw error;
+	}
+
+	return res;
+};
+
+export const searchKnowledgeFilesById = async (
+	token: string,
+	id: string,
+	query?: string | null = null,
+	viewOption?: string | null = null,
+	orderBy?: string | null = null,
+	direction?: string | null = null,
+	page: number = 1
+) => {
+	let error = null;
+
+	const searchParams = new URLSearchParams();
+	if (query) searchParams.append('query', query);
+	if (viewOption) searchParams.append('view_option', viewOption);
+	if (orderBy) searchParams.append('order_by', orderBy);
+	if (direction) searchParams.append('direction', direction);
+	searchParams.append('page', page.toString());
+
+	const res = await fetch(
+		`${WEBUI_API_BASE_URL}/knowledge/${id}/files?${searchParams.toString()}`,
+		{
+			method: 'GET',
+			headers: {
+				Accept: 'application/json',
+				'Content-Type': 'application/json',
+				authorization: `Bearer ${token}`
+			}
+		}
+	)
+		.then(async (res) => {
+			if (!res.ok) throw await res.json();
+			return res.json();
+		})
+		.then((json) => {
+			return json;
+		})
+		.catch((err) => {
+			error = err.detail;
 			console.error(err);
 			return null;
 		});
@@ -289,7 +265,33 @@ export const getKnowledgeById = async (token: string, id: string) => {
 		})
 		.catch((err) => {
 			error = err.detail;
+			console.error(err);
+			return null;
+		});
 
+	if (error) {
+		throw error;
+	}
+
+	return res;
+};
+
+export const exportKnowledgeById = async (token: string, id: string) => {
+	let error = null;
+
+	const res = await fetch(`${WEBUI_API_BASE_URL}/knowledge/${id}/export`, {
+		method: 'GET',
+		headers: {
+			Accept: 'application/octet-stream',
+			authorization: `Bearer ${token}`
+		}
+	})
+		.then(async (res) => {
+			if (!res.ok) throw await res.json();
+			return await res.blob();
+		})
+		.catch((err) => {
+			error = err?.detail ?? 'Failed to export knowledge.';
 			console.error(err);
 			return null;
 		});
@@ -305,8 +307,8 @@ type KnowledgeUpdateForm = {
 	name?: string;
 	description?: string;
 	data?: object;
-    embed?: boolean,
-	access_control?: null | object;
+	embed?: boolean;
+	access_grants?: object[];
 };
 
 export const updateKnowledgeById = async (token: string, id: string, form: KnowledgeUpdateForm) => {
@@ -323,8 +325,8 @@ export const updateKnowledgeById = async (token: string, id: string, form: Knowl
 			name: form?.name ? form.name : undefined,
 			description: form?.description ? form.description : undefined,
 			data: form?.data ? form.data : undefined,
-            embed: form?.embed,
-			access_control: form.access_control
+			embed: form?.embed,
+			access_grants: form.access_grants
 		})
 	})
 		.then(async (res) => {
@@ -336,7 +338,39 @@ export const updateKnowledgeById = async (token: string, id: string, form: Knowl
 		})
 		.catch((err) => {
 			error = err.detail;
+			console.error(err);
+			return null;
+		});
 
+	if (error) {
+		throw error;
+	}
+
+	return res;
+};
+
+export const updateKnowledgeAccessGrants = async (
+	token: string,
+	id: string,
+	accessGrants: any[]
+) => {
+	let error = null;
+
+	const res = await fetch(`${WEBUI_API_BASE_URL}/knowledge/${id}/access/update`, {
+		method: 'POST',
+		headers: {
+			Accept: 'application/json',
+			'Content-Type': 'application/json',
+			authorization: `Bearer ${token}`
+		},
+		body: JSON.stringify({ access_grants: accessGrants })
+	})
+		.then(async (res) => {
+			if (!res.ok) throw await res.json();
+			return res.json();
+		})
+		.catch((err) => {
+			error = err.detail;
 			console.error(err);
 			return null;
 		});
@@ -371,7 +405,6 @@ export const addFileToKnowledgeById = async (token: string, id: string, fileId: 
 		})
 		.catch((err) => {
 			error = err.detail;
-
 			console.error(err);
 			return null;
 		});
@@ -406,7 +439,6 @@ export const updateFileFromKnowledgeById = async (token: string, id: string, fil
 		})
 		.catch((err) => {
 			error = err.detail;
-
 			console.error(err);
 			return null;
 		});
@@ -441,7 +473,6 @@ export const removeFileFromKnowledgeById = async (token: string, id: string, fil
 		})
 		.catch((err) => {
 			error = err.detail;
-
 			console.error(err);
 			return null;
 		});
@@ -473,7 +504,6 @@ export const resetKnowledgeById = async (token: string, id: string) => {
 		})
 		.catch((err) => {
 			error = err.detail;
-
 			console.error(err);
 			return null;
 		});
@@ -505,7 +535,6 @@ export const deleteKnowledgeById = async (token: string, id: string) => {
 		})
 		.catch((err) => {
 			error = err.detail;
-
 			console.error(err);
 			return null;
 		});

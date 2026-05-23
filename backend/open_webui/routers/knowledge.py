@@ -157,6 +157,29 @@ async def get_knowledge_bases(
     )
 
 
+@router.get('/list')
+async def get_knowledge_base_list(
+    user=Depends(get_verified_user),
+    db: AsyncSession = Depends(get_async_session),
+):
+    knowledge_bases = await Knowledges.get_knowledge_bases(db=db)
+
+    if user.role != 'admin' or not BYPASS_ADMIN_ACCESS_CONTROL:
+        knowledge_base_ids = [kb.id for kb in knowledge_bases]
+        readable_ids = await AccessGrants.get_accessible_resource_ids(
+            user_id=user.id,
+            resource_type='knowledge',
+            resource_ids=knowledge_base_ids,
+            permission='read',
+            db=db,
+        )
+        knowledge_bases = [
+            kb for kb in knowledge_bases if kb.user_id == user.id or kb.id in readable_ids
+        ]
+
+    return knowledge_bases
+
+
 @router.get('/search', response_model=KnowledgeAccessListResponse)
 async def search_knowledge_bases(
     query: Optional[str] = None,
@@ -402,6 +425,7 @@ async def get_knowledge_by_id(id: str, user=Depends(get_verified_user), db: Asyn
         ):
             return KnowledgeFilesResponse(
                 **knowledge.model_dump(),
+                files=await Knowledges.get_file_metadatas_by_id(knowledge.id, db=db),
                 write_access=(
                     user.id == knowledge.user_id
                     or (user.role == 'admin' and BYPASS_ADMIN_ACCESS_CONTROL)

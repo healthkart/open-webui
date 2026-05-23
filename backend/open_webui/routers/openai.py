@@ -118,7 +118,7 @@ async def send_get_request(
                 return await response.json()
     except Exception as e:
         # Handle connection error here
-        log.error(f'Connection error: {e}')
+        log.error(f'Connection error to {url}: {type(e).__name__}: {e}')
         return None
 
 

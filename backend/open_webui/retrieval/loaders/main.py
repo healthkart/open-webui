@@ -1,3 +1,4 @@
+import asyncio
 import hashlib
 import logging
 import os
@@ -261,6 +262,7 @@ class DoclingLoader:
 class Loader:
     def __init__(self, engine: str = '', **kwargs):
         self.engine = engine
+        self.user = kwargs.get('user', None)
         self.kwargs = kwargs
 
     def load(self, filename: str, file_content_type: str, file_path: str) -> list[Document]:
@@ -268,6 +270,9 @@ class Loader:
         docs = loader.load()
 
         return [Document(page_content=ftfy.fix_text(doc.page_content), metadata=doc.metadata) for doc in docs]
+
+    async def aload(self, filename: str, file_content_type: str, file_path: str) -> list[Document]:
+        return await asyncio.to_thread(self.load, filename, file_content_type, file_path)
 
     def _is_text_file(self, file_ext: str, file_content_type: str) -> bool:
         return file_ext in known_source_ext or (

@@ -15,7 +15,7 @@
 	let name = '';
 	let description = '';
 	let embed = false;
-	let accessControl = {};
+	let accessGrants = [];
 
 	const submitHandler = async () => {
 		loading = true;
@@ -32,7 +32,7 @@
             localStorage.token,
             name,
             description,
-            accessControl,
+            accessGrants,
             embed
         ).catch((e) => {
 			toast.error(`${e}`);
@@ -125,7 +125,7 @@
 		<div class="mt-2">
 			<div class="px-3 py-2 bg-gray-50 dark:bg-gray-950 rounded-lg">
 				<AccessControl
-					bind:accessControl
+					bind:accessGrants
 					accessRoles={['read', 'write']}
 					allowPublic={$user?.permissions?.sharing?.public_knowledge || $user?.role === 'admin'}
 				/>

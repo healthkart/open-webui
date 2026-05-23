@@ -66,7 +66,8 @@
 			file_ids: string[];
 		};
 		files: any[];
-		embed: boolean
+		embed: boolean;
+		access_grants?: any[];
 	};
 
 	let id = null;
@@ -176,7 +177,7 @@
 				};
 			}
 
-			const uploadedFile = await uploadFile(localStorage.token, file, metadata, knowledge.embed).catch((e) => {
+			const uploadedFile = await uploadFile(localStorage.token, file, metadata, knowledge.embed ?? true).catch((e) => {
 				toast.error(`${e}`);
 				return null;
 			});
@@ -475,7 +476,7 @@
 				...knowledge,
 				name: knowledge.name,
 				description: knowledge.description,
-				access_control: knowledge.access_control
+				access_grants: knowledge.access_grants ?? []
 			}).catch((e) => {
 				toast.error(`${e}`);
 			});
@@ -598,6 +599,9 @@
 
 		if (res) {
 			knowledge = res;
+			if (!Array.isArray(knowledge?.access_grants)) {
+				knowledge.access_grants = [];
+			}
 		} else {
 			goto('/workspace/knowledge');
 		}
@@ -694,7 +698,7 @@
 	{#if id && knowledge}
 		<AccessControlModal
 			bind:show={showAccessControlModal}
-			bind:accessControl={knowledge.access_control}
+			bind:accessGrants={knowledge.access_grants}
 			allowPublic={$user?.permissions?.sharing?.public_knowledge || $user?.role === 'admin'}
 			onChange={() => {
 				changeDebounceHandler();
@@ -893,16 +897,16 @@
 
 								<div>
 									<AddContentMenu
-										on:upload={(e) => {
-											if (e.detail.type === 'directory') {
+										onUpload={(data) => {
+											if (data.type === 'directory') {
 												uploadDirectoryHandler();
-											} else if (e.detail.type === 'text') {
+											} else if (data.type === 'text') {
 												showAddTextContentModal = true;
 											} else {
 												document.getElementById('files-input').click();
 											}
 										}}
-										on:sync={(e) => {
+										onSync={() => {
 											showSyncConfirmModal = true;
 										}}
 									/>
@@ -916,14 +920,14 @@
 									small
 									files={filteredItems}
 									{selectedFileId}
-									on:click={(e) => {
-										selectedFileId = selectedFileId === e.detail ? null : e.detail;
+									onClick={(fileId) => {
+										selectedFileId = selectedFileId === fileId ? null : fileId;
 									}}
-									on:delete={(e) => {
-										console.log(e.detail);
+									onDelete={(fileId) => {
+										console.log(fileId);
 
 										selectedFileId = null;
-										deleteFileHandler(e.detail);
+										deleteFileHandler(fileId);
 									}}
 								/>
 							</div>

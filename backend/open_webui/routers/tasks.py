@@ -194,7 +194,8 @@ async def generate_title(request: Request, form_data: dict, user=Depends(get_ver
 
     content = title_generation_template(template, form_data['messages'], user)
 
-    max_tokens = models[task_model_id].get('info', {}).get('params', {}).get('max_tokens', 1000)
+    task_model = models.get(task_model_id, {})
+    max_tokens = task_model.get('info', {}).get('params', {}).get('max_tokens', 1000)
 
     payload = {
         'model': task_model_id,
@@ -202,7 +203,7 @@ async def generate_title(request: Request, form_data: dict, user=Depends(get_ver
         'stream': False,
         **(
             {'max_tokens': max_tokens}
-            if models[task_model_id].get('owned_by') == 'ollama'
+            if task_model.get('owned_by') == 'ollama'
             else {
                 'max_completion_tokens': max_tokens,
             }
@@ -630,7 +631,7 @@ async def generate_emoji(request: Request, form_data: dict, user=Depends(get_ver
         'stream': False,
         **(
             {'max_tokens': 4}
-            if models[task_model_id].get('owned_by') == 'ollama'
+            if models.get(task_model_id, {}).get('owned_by') == 'ollama'
             else {
                 'max_completion_tokens': 4,
             }

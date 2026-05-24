@@ -125,6 +125,7 @@ from open_webui.env import (
 )
 
 from open_webui.constants import ERROR_MESSAGES
+from open_webui.tasks import redis_send_command
 
 log = logging.getLogger(__name__)
 
@@ -322,6 +323,49 @@ class EmbeddingModelUpdateForm(BaseModel):
     RAG_EMBEDDING_CONCURRENT_REQUESTS: Optional[int] = 0
 
 
+def reinitialize_embedding(app):
+    """Rebuild ef and EMBEDDING_FUNCTION from current config. Safe to call on any worker."""
+    engine = app.state.config.RAG_EMBEDDING_ENGINE
+    app.state.ef = get_ef(engine, app.state.config.RAG_EMBEDDING_MODEL)
+    app.state.EMBEDDING_FUNCTION = get_embedding_function(
+        engine,
+        app.state.config.RAG_EMBEDDING_MODEL,
+        app.state.ef,
+        (
+            app.state.config.RAG_OPENAI_API_BASE_URL
+            if engine == 'openai'
+            else (
+                app.state.config.RAG_OLLAMA_BASE_URL
+                if engine == 'ollama'
+                else (
+                    app.state.config.RAG_GEMINI_API_BASE_URL
+                    if engine == 'gemini'
+                    else app.state.config.RAG_AZURE_OPENAI_BASE_URL
+                )
+            )
+        ),
+        (
+            app.state.config.RAG_OPENAI_API_KEY
+            if engine == 'openai'
+            else (
+                app.state.config.RAG_OLLAMA_API_KEY
+                if engine == 'ollama'
+                else (
+                    app.state.config.RAG_GEMINI_API_KEY
+                    if engine == 'gemini'
+                    else app.state.config.RAG_AZURE_OPENAI_API_KEY
+                )
+            )
+        ),
+        app.state.config.RAG_EMBEDDING_BATCH_SIZE,
+        azure_api_version=(
+            app.state.config.RAG_AZURE_OPENAI_API_VERSION if engine == 'azure_openai' else None
+        ),
+        enable_async=app.state.config.ENABLE_ASYNC_EMBEDDING,
+        concurrent_requests=app.state.config.RAG_EMBEDDING_CONCURRENT_REQUESTS,
+    )
+
+
 def unload_embedding_model(request: Request):
     if request.app.state.config.RAG_EMBEDDING_ENGINE == '':
         # unloads current internal embedding model and clears VRAM cache
@@ -373,51 +417,13 @@ async def update_embedding_config(request: Request, form_data: EmbeddingModelUpd
                 request.app.state.config.RAG_GEMINI_API_BASE_URL = form_data.gemini_config.url
                 request.app.state.config.RAG_GEMINI_API_KEY = form_data.gemini_config.key
 
-        request.app.state.ef = get_ef(
-            request.app.state.config.RAG_EMBEDDING_ENGINE,
-            request.app.state.config.RAG_EMBEDDING_MODEL,
-        )
+        reinitialize_embedding(request.app)
 
-        engine = request.app.state.config.RAG_EMBEDDING_ENGINE
-        request.app.state.EMBEDDING_FUNCTION = get_embedding_function(
-            engine,
-            request.app.state.config.RAG_EMBEDDING_MODEL,
-            request.app.state.ef,
-            (
-                request.app.state.config.RAG_OPENAI_API_BASE_URL
-                if engine == 'openai'
-                else (
-                    request.app.state.config.RAG_OLLAMA_BASE_URL
-                    if engine == 'ollama'
-                    else (
-                        request.app.state.config.RAG_GEMINI_API_BASE_URL
-                        if engine == 'gemini'
-                        else request.app.state.config.RAG_AZURE_OPENAI_BASE_URL
-                    )
-                )
-            ),
-            (
-                request.app.state.config.RAG_OPENAI_API_KEY
-                if engine == 'openai'
-                else (
-                    request.app.state.config.RAG_OLLAMA_API_KEY
-                    if engine == 'ollama'
-                    else (
-                        request.app.state.config.RAG_GEMINI_API_KEY
-                        if engine == 'gemini'
-                        else request.app.state.config.RAG_AZURE_OPENAI_API_KEY
-                    )
-                )
-            ),
-            request.app.state.config.RAG_EMBEDDING_BATCH_SIZE,
-            azure_api_version=(
-                request.app.state.config.RAG_AZURE_OPENAI_API_VERSION
-                if engine == 'azure_openai'
-                else None
-            ),
-            enable_async=request.app.state.config.ENABLE_ASYNC_EMBEDDING,
-            concurrent_requests=request.app.state.config.RAG_EMBEDDING_CONCURRENT_REQUESTS,
-        )
+        if request.app.state.redis:
+            await redis_send_command(
+                request.app.state.redis,
+                {'action': 'reload_embedding', 'sender_pid': os.getpid()},
+            )
 
         return {
             'status': True,

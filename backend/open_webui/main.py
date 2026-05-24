@@ -113,6 +113,7 @@ from open_webui.routers.retrieval import (
     get_reranking_function,
     get_ef,
     get_rf,
+    reinitialize_embedding,
 )
 
 
@@ -677,6 +678,8 @@ async def lifespan(app: FastAPI):
     if app.state.redis is not None:
         app.state.redis_task_command_listener = asyncio.create_task(redis_task_command_listener(app))
 
+    app.state._reload_embedding_fn = lambda: reinitialize_embedding(app)
+
     if THREAD_POOL_SIZE and THREAD_POOL_SIZE > 0:
         limiter = anyio.to_thread.current_default_thread_limiter()
         limiter.total_tokens = THREAD_POOL_SIZE
@@ -1194,7 +1197,11 @@ app.state.EMBEDDING_FUNCTION = get_embedding_function(
         else (
             app.state.config.RAG_OLLAMA_BASE_URL
             if app.state.config.RAG_EMBEDDING_ENGINE == 'ollama'
-            else app.state.config.RAG_AZURE_OPENAI_BASE_URL
+            else (
+                app.state.config.RAG_GEMINI_API_BASE_URL
+                if app.state.config.RAG_EMBEDDING_ENGINE == 'gemini'
+                else app.state.config.RAG_AZURE_OPENAI_BASE_URL
+            )
         )
     ),
     key=(
@@ -1203,7 +1210,11 @@ app.state.EMBEDDING_FUNCTION = get_embedding_function(
         else (
             app.state.config.RAG_OLLAMA_API_KEY
             if app.state.config.RAG_EMBEDDING_ENGINE == 'ollama'
-            else app.state.config.RAG_AZURE_OPENAI_API_KEY
+            else (
+                app.state.config.RAG_GEMINI_API_KEY
+                if app.state.config.RAG_EMBEDDING_ENGINE == 'gemini'
+                else app.state.config.RAG_AZURE_OPENAI_API_KEY
+            )
         )
     ),
     embedding_batch_size=app.state.config.RAG_EMBEDDING_BATCH_SIZE,

@@ -1,5 +1,6 @@
 # tasks.py
 import asyncio
+import os
 from typing import Dict
 from uuid import uuid4
 import json
@@ -37,6 +38,13 @@ async def redis_task_command_listener(app):
                 local_task = tasks.get(task_id)
                 if local_task:
                     local_task.cancel()
+            elif command.get('action') == 'reload_embedding':
+                if command.get('sender_pid') == os.getpid():
+                    continue
+                reload_fn = getattr(app.state, '_reload_embedding_fn', None)
+                if reload_fn:
+                    reload_fn()
+                    log.info('Embedding function reloaded via Redis broadcast')
         except Exception as e:
             log.exception(f'Error handling distributed task command: {e}')
 

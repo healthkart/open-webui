@@ -51,6 +51,8 @@ services:
       - ENABLE_MODEL_FILTER=true
       - ENABLE_COMMUNITY_SHARING=false
       - OAUTH_MERGE_ACCOUNTS_BY_EMAIL=true
+      - UVICORN_WORKERS=${UVICORN_WORKERS}
+      - REDIS_URL=${REDIS_URL}
 
 volumes:
   open-webui: {}
